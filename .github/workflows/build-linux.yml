@@ -1,0 +1,45 @@
+name: Build NekoSpeed Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-linux.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Linux amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Compile NekoSpeed
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          go build -trimpath -ldflags="-s -w" -o nekospeed-linux-amd64 ./cmd/nekospeed
+          chmod +x nekospeed-linux-amd64
+          ./nekospeed-linux-amd64 -h >/dev/null 2>&1
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nekospeed-linux-amd64
+          path: nekospeed-linux-amd64
+          retention-days: 30
+          if-no-files-found: error
