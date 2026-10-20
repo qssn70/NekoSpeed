@@ -6,7 +6,11 @@ on:
     branches:
       - main
     paths:
-      - .github/workflows/build-linux.yml
+      - '.github/workflows/build-linux.yml'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
 
 permissions:
   contents: read
@@ -25,6 +29,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+
+      - name: Test Web UI
+        run: go test ./internal/webui
 
       - name: Compile NekoSpeed
         env:

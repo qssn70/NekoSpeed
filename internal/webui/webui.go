@@ -40,14 +40,29 @@ func Serve(addr string) error {
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /files/{name}", s.handleFiles)
 
-	url := "http://localhost" + ln.Addr().String()
-	if strings.HasSuffix(url, "]") { // 监听在 ":port" 上时 Addr 是 "[::]:port"
-		url = "http://localhost:" + strings.TrimPrefix(addr, ":")
+	url, err := browserURL(ln.Addr().String())
+	if err != nil {
+		ln.Close()
+		return err
 	}
 	fmt.Printf("Web UI 已启动：%s\n", url)
 	openBrowser(url)
 
 	return http.Serve(ln, mux)
+}
+
+
+// browserURL 将监听套接字地址转换成可访问的浏览器 URL。
+// 0.0.0.0 和 [::] 是通配监听地址，不能直接作为访问主机名使用。
+func browserURL(listenAddr string) (string, error) {
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return "", fmt.Errorf("解析 Web UI 监听地址 %q 失败: %w", listenAddr, err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	return "http://" + net.JoinHostPort(host, port), nil
 }
 
 type server struct {
