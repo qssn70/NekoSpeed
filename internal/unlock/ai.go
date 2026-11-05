@@ -22,7 +22,6 @@ var (
 	claudeTraceURL     = "https://claude.ai/cdn-cgi/trace"
 	perplexityAPIURL   = "https://api.perplexity.ai/chat/completions"
 	perplexityTraceURL = "https://www.perplexity.ai/cdn-cgi/trace"
-	soraAPIURL         = "https://api.openai.com/v1/videos"
 	grokURL            = "https://grok.x.ai/"
 )
 
@@ -175,27 +174,45 @@ func checkPerplexity(ctx context.Context, d model.Dialer) model.UnlockResult {
 	return model.UnlockResult{Status: model.StatusFailed, Region: region, Info: fmt.Sprintf("HTTP %d (%db)", r.StatusCode, len(r.Body))}
 }
 
-// checkSora 通过 OpenAI 平台 /v1/videos 检测 Sora 区域可用性：
-// geo 检查先于鉴权，无 key 时 403+unsupported_country 即地区封锁，401 即地区支持。
-// 地区取自 chat.openai.com cdn-cgi/trace。
+// checkSora 检测 Sora 区域可用性。
+//
+// 旧实现请求 api.openai.com/v1/videos 并以 401/403 判定,但该端点自 2026 年起
+// 对全球任何 IP 均返回 404(OpenAI 已将 Sora 收进 ChatGPT),检测永久失效。
+// 现改为:Sora 与 ChatGPT 共用地区体系,用 chatgpt.com cdn-cgi/trace 取地区码,
+// 对照 Sora 支持国家白名单判定(名单随 OpenAI 开放政策维护,见 Sora 官网)。
 func checkSora(ctx context.Context, d model.Dialer) model.UnlockResult {
-	c := newClient(d, true)
-	r, err := doGet(ctx, c, soraAPIURL)
-	if err != nil {
-		return reqFailed("sora")
-	}
 	region := ""
-	if trace, terr := doGet(ctx, c, openAITraceURL); terr == nil {
+	if trace, terr := doGet(ctx, newClient(d, true), openAITraceURL); terr == nil {
 		region = traceRegion(trace.Body)
 	}
-	if r.StatusCode == 401 || r.StatusCode == 200 {
+	if region == "" {
+		return reqFailed("sora")
+	}
+	if soraCountries[region] {
 		return model.UnlockResult{Status: model.StatusUnlock, Region: region}
 	}
-	body := strings.ToLower(string(r.Body))
-	if strings.Contains(body, "unsupported_country") || strings.Contains(body, "not supported") {
-		return model.UnlockResult{Status: model.StatusFailed, Region: region, Info: "地区限制"}
-	}
-	return model.UnlockResult{Status: model.StatusFailed, Region: region, Info: fmt.Sprintf("HTTP %d (%db)", r.StatusCode, len(r.Body))}
+	return model.UnlockResult{Status: model.StatusFailed, Region: region, Info: "地区限制"}
+}
+
+// soraCountries:Sora 已开放的国家/地区码(截至 2026-11,依据 Sora 官网帮助中心;
+// 香港/澳门/中国大陆及受制裁国家不在列)。上游维护时请跟进官方开放名单。
+var soraCountries = map[string]bool{
+	// 北美
+	"US": true, "CA": true, "MX": true,
+	// 亚太
+	"JP": true, "KR": true, "SG": true, "TW": true,
+	"AU": true, "NZ": true, "IN": true, "TH": true, "ID": true, "VN": true,
+	"MY": true, "PH": true,
+	// 欧洲
+	"GB": true, "IE": true, "DE": true, "FR": true, "IT": true, "ES": true,
+	"PT": true, "NL": true, "BE": true, "LU": true, "AT": true, "CH": true,
+	"SE": true, "NO": true, "DK": true, "FI": true, "IS": true,
+	"PL": true, "CZ": true, "SK": true, "HU": true, "GR": true, "RO": true,
+	"BG": true, "HR": true, "SI": true, "EE": true, "LV": true, "LT": true,
+	"MT": true, "CY": true,
+	// 拉美与其他
+	"BR": true, "AR": true, "CL": true, "CO": true, "PE": true,
+	"IL": true, "TR": true, "AE": true, "SA": true, "ZA": true,
 }
 
 // checkGrok xAI Grok 可用性检测。
