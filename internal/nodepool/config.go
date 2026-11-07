@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -35,7 +36,7 @@ type ConfigSession struct {
 	once    sync.Once
 }
 
-func OpenConfig(data []byte, baseDir string, nodes []model.Node, ecs string) (*ConfigSession, error) {
+func OpenConfig(data []byte, baseDir string, nodes []model.Node, ecs string, upstream *url.URL) (*ConfigSession, error) {
 	configMu.Lock()
 	oldHome := C.Path.HomeDir()
 	tempDir := ""
@@ -63,6 +64,12 @@ func OpenConfig(data []byte, baseDir string, nodes []model.Node, ecs string) (*C
 		release()
 		return nil, fmt.Errorf("读取 Clash 配置: %w", err)
 	}
+	if len(data) == 0 {
+		for _, node := range nodes {
+			raw.Proxy = append(raw.Proxy, node.Raw)
+		}
+	}
+	overrideDNS(&raw.DNS, upstream)
 	removeRouting(raw)
 	cfg, err := config.ParseRawConfig(raw)
 	if err != nil {

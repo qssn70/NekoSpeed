@@ -42,6 +42,7 @@
 - **内嵌 Web UI**：`-web` 一键启动浏览器操作界面（填订阅、实时日志、查看/下载结果图），零额外文件
 - **订阅节点测速**：保留 DNS 策略、hosts、前置链和外部节点列表，忽略分流规则，代理组展开为默认节点，不改写订阅或强制替换入口 IP
 - **DNS ECS 位置提示**：指定省份和运营商，或自定义 IPv4/IPv6 网段，向订阅 DNS 上游提示解析位置
+- **指定 DNS 上游**：可选覆盖订阅 DNS 及域名策略，配合 ECS 查询其他运营商入口
 - **输出文件名**：自动从订阅 URL/文件/内容中提取订阅名称，作为输出文件前缀（如 `xx机场_20260724_105252_speed.png`），也可用 `-name` 手动指定
 - **随机主题**：以 16 款柔和浅色主题为主（带 subtle 背景花纹），另有 4 款深色精选与 `default`，每次运行随机一套；也可通过 `-theme` 指定
 
@@ -86,6 +87,7 @@
 | `-ping-url` | `https://www.gstatic.com/generate_204` | 延迟测试目标，分别请求同一路径的 HTTP 和 HTTPS 地址 |
 | `-ping-count` | 4 | 每节点延迟测试次数 |
 | `-preflight` | false | 已停用；仅兼容旧命令，不会覆盖订阅 DNS 或固定入口 IP |
+| `-dns` | - | 指定单个 DNS 上游（IP[:端口] 或 DNS URL），覆盖订阅 DNS 策略，可与 ECS 配合 |
 | `-dns-province` | - | DNS ECS 省份，如 `广东`、`福建省`，与 `-dns-isp` 配合使用 |
 | `-dns-isp` | - | DNS ECS 运营商：电信、联通、移动（也接受 telecom/unicom/mobile） |
 | `-dns-ecs` | - | 自定义 ECS IP/CIDR，优先于省份和运营商预设 |
@@ -97,11 +99,23 @@
 - Clash YAML（完整配置或 `proxies:` 列表，也支持仅使用 `proxy-providers:` 的配置），支持 `anytls` 等 mihomo 全部协议
 - 分享链接订阅（base64 或明文逐行）：`ss://` `ssr://` `vmess://` `vless://` `trojan://` `hysteria2://`/`hy2://` `tuic://` `snell://`（`anytls://` 分享链接暂不支持，请用 Clash YAML 形式）
 
-Clash 订阅文件保持原样，不重新生成 YAML，也不回写源文件。在内存中忽略 `rules`、`sub-rules` 和仅用于分流的 `rule-providers`。节点服务器仍按订阅的 `nameserver-policy`、`proxy-server-nameserver-policy` 等策略解析；DNS 策略显式依赖的规则集会单独保留，不参与流量分流。不查询工具写死的公共 DNS，也不把解析结果注入 hosts。
+Clash 订阅文件保持原样，不重新生成 YAML，也不回写源文件。在内存中忽略 `rules`、`sub-rules` 和仅用于分流的 `rule-providers`。未指定 `-dns` 时，节点服务器仍按订阅的 `nameserver-policy`、`proxy-server-nameserver-policy` 等策略解析；DNS 策略显式依赖的规则集会单独保留，不参与流量分流。不强制查询工具写死的公共 DNS，也不把解析结果注入 hosts。
 
 代理组仅在加载时用于展开默认首选节点：优先 `default-selected`，否则取组中的首个节点，嵌套组递归展开。节点的 `dialer-proxy` 或 DNS 对组的引用会指向展开后的固定节点，不运行组的自动选择、故障切换或负载均衡策略。`-filter` 只筛选测速目标，前置节点仍保留；不继承其他客户端的当前选择。
 
 测速直接调用当前节点的内核出站，无额外的本机 SOCKS5 桥接。DNS 的 `respect-rules` / `#RULES` 不再经过订阅分流，按直连处理；显式指定节点或组的 DNS 连接仍使用对应节点。不启动订阅中的代理端口、DNS 监听、TUN 或防火墙设置。本地配置的 provider 相对路径以原文件所在目录为基准，URL 订阅使用独立临时工作目录，任务结束后清理。
+
+### 指定 DNS 上游
+
+```sh
+./nekospeed -config ./clash.yaml -dns https://dns.alidns.com/dns-query
+./nekospeed -config ./clash.yaml -dns https://dns.alidns.com/dns-query -dns-ecs 58.60.0.0/24
+./nekospeed -config ./clash.yaml -dns tcp://223.5.5.5:53
+```
+
+`-dns` 接受单个上游，裸 IP 或 `IP:端口` 默认使用 UDP，也支持 `udp://`、`tcp://`、`tls://`、`https://`、`http://`、`quic://` URL，IPv6 带端口时使用 `[IPv6]:端口`。留空保持订阅设置；填写后仅在内存中启用 DNS，替换普通、节点域名和直连 DNS 上游，清除 `nameserver-policy`、`proxy-server-nameserver-policy`、fallback 与其筛选条件，避免入口域名仍命中私有 DNS。DNS 策略不再引用的规则集也不加载。
+
+IP 形式的上游同时用于 bootstrap；域名形式的上游沿用订阅的 `default-nameserver`，仅用于解析 DNS 服务自身的域名。分享链接订阅也可指定 `-dns`，在内存中为节点建立 DNS 运行配置。不会改写订阅、系统 DNS 或影响订阅拉取，订阅中的 hosts 与 IP 字面量仍优先。
 
 ### 指定 DNS 解析的省份与运营商
 
@@ -113,9 +127,9 @@ Clash 订阅文件保持原样，不重新生成 YAML，也不回写源文件。
 
 Web UI 中可直接选择“DNS ECS 省份”和“运营商”，也可填写“自定义 ECS”；留空使用订阅默认设置。
 
-这使用 ECS（EDNS Client Subnet）向 DNS 上游提示客户端网段，实际是否采用、返回哪个入口由 DNS 上游及权威服务决定。上游仍使用订阅中的地址和协议，不会改用预设对应的 DNS 服务器，也不会改变实际出口 IP。只影响测速内核的 DNS 查询，不影响订阅拉取；IP 字面量和 hosts 命中时不产生 DNS 查询。
+这使用 ECS（EDNS Client Subnet）向 DNS 上游提示客户端网段，实际是否采用、返回哪个入口由 DNS 上游及权威服务决定。未指定 `-dns` 时，上游仍使用订阅中的地址和协议，不会改用 ECS 预设对应的 DNS 服务器，也不会改变实际出口 IP。只影响测速内核的 DNS 查询，不影响订阅拉取；IP 字面量和 hosts 命中时不产生 DNS 查询。
 
-需使用已启用 `dns.enable` 且配置了上游的 Clash 订阅，支持 UDP、TCP、DoH、DoT 和 DoQ。仅有分享链接、未启用 DNS 或使用 system/dhcp/tailscale 上游时会明确报错。参数留空时保持订阅默认；指定后覆盖本次任务内各 DNS 上游及域名策略的 ECS 参数，不改写源文件。自定义 IP 默认使用完整地址（IPv4 `/32`、IPv6 `/128`），CIDR 会规范化为网络地址。自定义值优先于省份/运营商选择。
+需使用已启用 `dns.enable` 且配置了上游的 Clash 订阅，或通过 `-dns` 指定上游，支持 UDP、TCP、DoH、DoT 和 DoQ。没有可用 DNS 配置，或实际使用 system/dhcp/tailscale 上游时会明确报错。ECS 参数留空时保持选用上游的 ECS 设置；指定后覆盖本次任务内各 DNS 上游及域名策略的 ECS 参数，不改写源文件。自定义 IP 默认使用完整地址（IPv4 `/32`、IPv6 `/128`），CIDR 会规范化为网络地址。自定义值优先于省份/运营商选择。
 
 内置 31 个省级地区 × 三网共 93 个代表网段，采用地区运营商 DNS 地址所属的 `/24` 作为 ECS 提示，不能保证每个 DNS 服务的地理库判断相同。地址事实来源：[dping 地区运营商表](https://github.com/RJ-SRE/dping/blob/5fa6b1e444d0fd202fdec6c548c3b4d1cc33412b/internal/model.go)、[dns-test-tool 地址表](https://github.com/tonydon140/dns-test-tool/blob/bacf37074a2b477c8dfa85e411744979bc11550b/src/main/resources/dns.json)。可用自定义网段替换预设。
 

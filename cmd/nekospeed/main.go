@@ -40,6 +40,7 @@ func main() {
 		dnsProvince = flag.String("dns-province", "", "DNS ECS 省份预设（如广东），需同时指定 -dns-isp")
 		dnsISP      = flag.String("dns-isp", "", "DNS ECS 运营商：电信/联通/移动，需同时指定 -dns-province")
 		dnsECS      = flag.String("dns-ecs", "", "自定义 DNS ECS IP/CIDR，优先于省份/运营商预设")
+		dnsServer   = flag.String("dns", "", "指定单个 DNS 上游（IP[:端口] 或 DNS URL），覆盖订阅 DNS 策略，可与 ECS 配合")
 		listDNSECS  = flag.Bool("list-dns-ecs", false, "列出 DNS ECS 省份/运营商预设后退出")
 	)
 	flag.Parse()
@@ -93,6 +94,7 @@ func main() {
 		DNSProvince: *dnsProvince,
 		DNSISP:      *dnsISP,
 		DNSECS:      *dnsECS,
+		DNS:         *dnsServer,
 	}, func(format string, args ...any) {
 		fmt.Printf(format+"\n", args...)
 	})

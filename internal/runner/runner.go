@@ -58,6 +58,7 @@ type Options struct {
 	DNSProvince string // DNS ECS 省份预设。
 	DNSISP      string // DNS ECS 运营商预设。
 	DNSECS      string // 自定义 ECS IP/CIDR，优先于省份和运营商。
+	DNS         string // 可选上游覆盖，清除订阅 DNS 策略。
 }
 
 // Output 一次测速任务的结果摘要。
@@ -81,6 +82,10 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 	if o.Single {
 		o.Threads = 1
 	}
+	upstream, err := nodepool.ParseDNS(o.DNS)
+	if err != nil {
+		return nil, err
+	}
 	ecs, err := nodepool.ResolveECS(o.DNSProvince, o.DNSISP, o.DNSECS)
 	if err != nil {
 		return nil, err
@@ -97,18 +102,23 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 		return nil, fmt.Errorf("加载订阅失败: %w", err)
 	}
 	nodes, subName := doc.Nodes, doc.Name
-	if ecs != "" && doc.Config == nil {
-		return nil, fmt.Errorf("DNS ECS 需要包含 DNS 配置的 Clash 订阅，分享链接列表没有 DNS 上游设置")
+	if ecs != "" && doc.Config == nil && upstream == nil {
+		return nil, fmt.Errorf("DNS ECS 需要包含 DNS 配置的 Clash 订阅，或通过 -dns 指定上游")
 	}
 	newDialer := nodepool.NewDialer
-	if doc.Config != nil {
-		session, err := nodepool.OpenConfig(doc.Config, doc.BaseDir, nodes, ecs)
+	if doc.Config != nil || upstream != nil {
+		session, err := nodepool.OpenConfig(doc.Config, doc.BaseDir, nodes, ecs, upstream)
 		if err != nil {
 			return nil, err
 		}
 		defer session.Close()
 		nodes, newDialer = session.Nodes, session.NewDialer
-		logf("已加载订阅 DNS、hosts 和节点列表；忽略分流规则，代理组按默认首选展开为实际节点；不覆盖入口 IP")
+		logf("已加载节点和 hosts；忽略分流规则，代理组按默认首选展开为实际节点；不覆盖入口 IP")
+		if upstream != nil {
+			logf("DNS 上游已按参数覆盖；忽略订阅的 nameserver-policy、proxy-server-nameserver-policy 和 fallback")
+		} else {
+			logf("DNS 上游和解析策略沿用订阅设置")
+		}
 		if ecs != "" {
 			logf("DNS ECS：%s（向订阅 DNS 上游提示位置，是否采用由上游决定）", ecs)
 		}
