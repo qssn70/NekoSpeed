@@ -111,6 +111,8 @@ Clash 订阅文件保持原样，不重新生成 YAML，也不回写源文件。
 ./nekospeed -list-dns-ecs
 ```
 
+Web UI 中可直接选择“DNS ECS 省份”和“运营商”，也可填写“自定义 ECS”；留空使用订阅默认设置。
+
 这使用 ECS（EDNS Client Subnet）向 DNS 上游提示客户端网段，实际是否采用、返回哪个入口由 DNS 上游及权威服务决定。上游仍使用订阅中的地址和协议，不会改用预设对应的 DNS 服务器，也不会改变实际出口 IP。只影响测速内核的 DNS 查询，不影响订阅拉取；IP 字面量和 hosts 命中时不产生 DNS 查询。
 
 需使用已启用 `dns.enable` 且配置了上游的 Clash 订阅，支持 UDP、TCP、DoH、DoT 和 DoQ。仅有分享链接、未启用 DNS 或使用 system/dhcp/tailscale 上游时会明确报错。参数留空时保持订阅默认；指定后覆盖本次任务内各 DNS 上游及域名策略的 ECS 参数，不改写源文件。自定义 IP 默认使用完整地址（IPv4 `/32`、IPv6 `/128`），CIDR 会规范化为网络地址。自定义值优先于省份/运营商选择。

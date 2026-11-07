@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"nekospeed/internal/nodepool"
 	"nekospeed/internal/runner"
 )
 
@@ -35,6 +36,7 @@ func Serve(addr string) error {
 	mux.HandleFunc("GET /", s.handleIndex)
 	mux.HandleFunc("POST /api/run", s.handleRun)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
+	mux.HandleFunc("GET /api/dns-ecs", s.handleDNSECS)
 	mux.HandleFunc("GET /files/{name}", s.handleFiles)
 
 	url, err := browserURL(ln.Addr().String())
@@ -80,7 +82,10 @@ type runRequest struct {
 	Single      bool   `json:"single"`
 	Filter      string `json:"filter"`
 	// Proxy 拉取订阅使用的代理（如 http://127.0.0.1:7890），为空时读取 HTTPS_PROXY 等环境变量。
-	Proxy string `json:"proxy"`
+	Proxy       string `json:"proxy"`
+	DNSProvince string `json:"dnsProvince"`
+	DNSISP      string `json:"dnsISP"`
+	DNSECS      string `json:"dnsECS"`
 }
 
 // doneEvent 是 SSE done 事件的数据。
@@ -102,6 +107,11 @@ func (s *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(indexHTML)
 }
 
+func (s *server) handleDNSECS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(nodepool.ECSProfiles())
+}
+
 func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	var req runRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -110,6 +120,10 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Source == "" {
 		http.Error(w, "订阅链接/本地路径不能为空", http.StatusBadRequest)
+		return
+	}
+	if _, err := nodepool.ResolveECS(req.DNSProvince, req.DNSISP, req.DNSECS); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -168,6 +182,9 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 			OutDir:      outDir,
 			PingURL:     "https://www.gstatic.com/generate_204",
 			Proxy:       req.Proxy,
+			DNSProvince: req.DNSProvince,
+			DNSISP:      req.DNSISP,
+			DNSECS:      req.DNSECS,
 		}, s.hub.logf)
 
 		evt := doneEvent{OK: err == nil}

@@ -21,11 +21,12 @@
   }
   label.field { display: block; margin-bottom: 12px; font-size: 14px; color: #555; }
   label.field span { display: block; margin-bottom: 4px; font-weight: 600; }
-  input[type=text], input[type=number] {
+  input[type=text], input[type=number], select {
     width: 100%; padding: 8px 10px; border: 1px solid #d0d5dd; border-radius: 6px;
     font-size: 14px; background: #fff;
   }
-  input:focus { outline: none; border-color: #4f8cff; }
+  input:focus, select:focus { outline: none; border-color: #4f8cff; }
+  .hint { color: #6b7280; font-size: 12px; margin: -4px 0 12px; }
   .row { display: flex; gap: 12px; flex-wrap: wrap; }
   .row label.field { flex: 1; min-width: 110px; }
   .checks { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
@@ -67,7 +68,7 @@
   <div class="card">
     <label class="field">
       <span>订阅链接 / 本地文件路径</span>
-      <input type="text" id="source" placeholder="https://example.com/sub 或 testdata/clash.yaml">
+      <input type="text" id="source" placeholder="https://example.com/sub 或 /path/to/clash.yaml">
     </label>
     <div class="checks" id="tests">
       <label><input type="checkbox" value="speed" checked> 测速</label>
@@ -93,6 +94,12 @@
       <span>订阅拉取代理（可选，订阅被墙时填写）</span>
       <input type="text" id="proxy" placeholder="如：http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
     </label>
+    <div class="row">
+      <label class="field"><span>DNS ECS 省份（可选）</span><select id="dnsProvince"><option value="">不指定</option></select></label>
+      <label class="field"><span>运营商</span><select id="dnsISP" disabled><option value="">请选择运营商</option></select></label>
+      <label class="field"><span>自定义 ECS（优先）</span><input type="text" id="dnsECS" placeholder="IPv4/IPv6 地址或 CIDR 网段"></label>
+    </div>
+    <p class="hint">向订阅中的 DNS 上游提示省份与运营商，不改变实际出口；是否采用由上游决定。需 Clash 订阅启用 DNS，自定义网段优先。</p>
     <button id="runBtn">开始测试</button>
   </div>
 
@@ -111,6 +118,26 @@
 
 <script>
 (function () {
+  var ecsProfiles = [];
+  var dnsProvince = document.getElementById('dnsProvince');
+  var dnsISP = document.getElementById('dnsISP');
+  var dnsECS = document.getElementById('dnsECS');
+  dnsProvince.addEventListener('change', function () {
+    dnsISP.replaceChildren(new Option('请选择运营商', ''));
+    dnsISP.disabled = !dnsProvince.value;
+    ecsProfiles.filter(function (p) { return p.province === dnsProvince.value; }).forEach(function (p) {
+      dnsISP.add(new Option(p.isp + ' · ' + p.subnet, p.isp));
+    });
+  });
+  fetch('/api/dns-ecs').then(function (resp) {
+    if (!resp.ok) { throw new Error('无法读取 DNS ECS 预设'); }
+    return resp.json();
+  }).then(function (profiles) {
+    ecsProfiles = profiles;
+    Array.from(new Set(profiles.map(function (p) { return p.province; }))).forEach(function (province) {
+      dnsProvince.add(new Option(province, province));
+    });
+  }).catch(function (err) { appendLog(err.message + '，仍可填写自定义 ECS。'); });
   var runBtn = document.getElementById('runBtn');
   var log = document.getElementById('log');
   var resultCard = document.getElementById('resultCard');
@@ -175,6 +202,9 @@
   runBtn.addEventListener('click', function () {
     var source = document.getElementById('source').value.trim();
     if (!source) { alert('请填写订阅链接或本地文件路径'); return; }
+    if (!dnsECS.value.trim() && Boolean(dnsProvince.value) !== Boolean(dnsISP.value)) {
+      alert('请同时选择 DNS ECS 省份和运营商，或填写自定义网段'); return;
+    }
     var tests = [];
     document.querySelectorAll('#tests input:checked').forEach(function (cb) { tests.push(cb.value); });
     if (!tests.length) { alert('请至少选择一项测试'); return; }
@@ -188,7 +218,10 @@
       pingCount: parseInt(document.getElementById('pingCount').value, 10) || 4,
       single: document.getElementById('single').checked,
       filter: document.getElementById('filter').value.trim(),
-      proxy: document.getElementById('proxy').value.trim()
+      proxy: document.getElementById('proxy').value.trim(),
+      dnsProvince: dnsProvince.value,
+      dnsISP: dnsISP.value,
+      dnsECS: dnsECS.value.trim()
     };
 
     log.textContent = '';
