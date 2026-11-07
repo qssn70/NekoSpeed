@@ -94,12 +94,17 @@
       <span>订阅拉取代理（可选，订阅被墙时填写）</span>
       <input type="text" id="proxy" placeholder="如：http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
     </label>
+    <label class="field">
+      <span>DNS 上游覆盖（可选）</span>
+      <input type="text" id="dns" placeholder="如：https://dns.alidns.com/dns-query 或 223.5.5.5">
+    </label>
+    <p class="hint">留空沿用订阅 DNS；填写后替换上游并忽略原有 DNS 域名策略和 fallback，可与下方 ECS 配合。</p>
     <div class="row">
       <label class="field"><span>DNS ECS 省份（可选）</span><select id="dnsProvince"><option value="">不指定</option></select></label>
       <label class="field"><span>运营商</span><select id="dnsISP" disabled><option value="">请选择运营商</option></select></label>
       <label class="field"><span>自定义 ECS（优先）</span><input type="text" id="dnsECS" placeholder="IPv4/IPv6 地址或 CIDR 网段"></label>
     </div>
-    <p class="hint">向订阅中的 DNS 上游提示省份与运营商，不改变实际出口；是否采用由上游决定。需 Clash 订阅启用 DNS，自定义网段优先。</p>
+    <p class="hint">向 DNS 上游提示省份与运营商，不改变实际出口；是否采用由上游决定。需订阅启用 DNS 或指定上游，自定义网段优先。</p>
     <button id="runBtn">开始测试</button>
   </div>
 
@@ -221,7 +226,8 @@
       proxy: document.getElementById('proxy').value.trim(),
       dnsProvince: dnsProvince.value,
       dnsISP: dnsISP.value,
-      dnsECS: dnsECS.value.trim()
+      dnsECS: dnsECS.value.trim(),
+      dns: document.getElementById('dns').value.trim()
     };
 
     log.textContent = '';

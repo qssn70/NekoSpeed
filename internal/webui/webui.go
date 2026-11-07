@@ -86,6 +86,7 @@ type runRequest struct {
 	DNSProvince string `json:"dnsProvince"`
 	DNSISP      string `json:"dnsISP"`
 	DNSECS      string `json:"dnsECS"`
+	DNS         string `json:"dns"`
 }
 
 // doneEvent 是 SSE done 事件的数据。
@@ -120,6 +121,10 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Source == "" {
 		http.Error(w, "订阅链接/本地路径不能为空", http.StatusBadRequest)
+		return
+	}
+	if _, err := nodepool.ParseDNS(req.DNS); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if _, err := nodepool.ResolveECS(req.DNSProvince, req.DNSISP, req.DNSECS); err != nil {
@@ -185,6 +190,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 			DNSProvince: req.DNSProvince,
 			DNSISP:      req.DNSISP,
 			DNSECS:      req.DNSECS,
+			DNS:         req.DNS,
 		}, s.hub.logf)
 
 		evt := doneEvent{OK: err == nil}
