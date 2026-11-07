@@ -167,7 +167,6 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 			Filter:      req.Filter,
 			OutDir:      outDir,
 			PingURL:     "https://www.gstatic.com/generate_204",
-			Preflight:   true,
 			Proxy:       req.Proxy,
 		}, s.hub.logf)
 

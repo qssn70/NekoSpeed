@@ -32,7 +32,7 @@ func main() {
 		pingURL     = flag.String("ping-url", "https://www.gstatic.com/generate_204", "HTTP/HTTPS 延迟测试目标（复用 RTT 与首次请求）")
 		pingCount   = flag.Int("ping-count", 4, "每节点延迟测试次数")
 		bandwidth   = flag.String("bandwidth", "", "本地带宽标签（如 1Gbps/1000Mbps），未指定时自动取测速峰值")
-		preflight   = flag.Bool("preflight", true, "测试前探测服务器 IP 可达性并锁定活 IP（应对 DDNS 轮换 IP 被封锁）")
+		preflight   = flag.Bool("preflight", false, "已停用，仅兼容旧命令；不覆盖订阅 DNS 或入口 IP")
 		theme       = flag.String("theme", "", "渲染主题名称（如 blue_dark），为空时随机选择")
 		proxy       = flag.String("proxy", "", "拉取订阅使用的代理（如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080），默认读取 HTTPS_PROXY 环境变量")
 		web         = flag.String("web", "", "启动内嵌 Web UI（如 :18189 或 18189），非空即启用")

@@ -25,7 +25,8 @@ func parseClash(data []byte) (nodes []model.Node, ok bool, err error) {
 	}
 	raw, exists := top["proxies"]
 	if !exists {
-		return nil, false, nil
+		_, providers := top["proxy-providers"]
+		return nil, providers, nil
 	}
 	list, isList := raw.([]any)
 	if !isList {

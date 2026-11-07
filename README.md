@@ -40,7 +40,7 @@
 - **线路分析**：入口（节点服务器 IP 归属）/ 出口（落地 IP 归属）聚合表，GeoLite2 mmdb 或在线 API
 - **UDP NAT 类型**：STUN（RFC 5780）检测 FullCone / Restricted / PortRestricted / Symmetric
 - **内嵌 Web UI**：`-web` 一键启动浏览器操作界面（填订阅、实时日志、查看/下载结果图），零额外文件
-- **IP 预检**：多公共 DNS 采样节点服务器 IP + TCP 探测，锁定当前可达 IP，避免 DDNS 轮换 IP 池中被封锁的死 IP 导致整节点失败
+- **原始配置测速**：完整加载 Clash 订阅中的 DNS 策略、hosts、代理组、前置链和外部节点列表，不改写订阅或强制替换入口 IP
 - **输出文件名**：自动从订阅 URL/文件/内容中提取订阅名称，作为输出文件前缀（如 `xx机场_20260724_105252_speed.png`），也可用 `-name` 手动指定
 - **随机主题**：以 16 款柔和浅色主题为主（带 subtle 背景花纹），另有 4 款深色精选与 `default`，每次运行随机一套；也可通过 `-theme` 指定
 
@@ -84,13 +84,17 @@
 | `-speed-url` | - | 自定义测速文件 URL（默认 Google / Cloudflare 大文件） |
 | `-ping-url` | `https://www.gstatic.com/generate_204` | 延迟测试目标，分别请求同一路径的 HTTP 和 HTTPS 地址 |
 | `-ping-count` | 4 | 每节点延迟测试次数 |
-| `-preflight` | true | 测试前多 DNS 采样服务器 IP 并 TCP 探测，锁定可达 IP（应对 DDNS 轮换 IP 被封锁） |
+| `-preflight` | false | 已停用；仅兼容旧命令，不会覆盖订阅 DNS 或固定入口 IP |
 | `-web` | - | 启动内嵌 Web UI（如 `:18189` 或 `18189`），非空即启用 |
 
 ## 支持的订阅格式
 
-- Clash YAML（`proxies:` 列表），支持 `anytls` 等 mihomo 全部协议
+- Clash YAML（完整配置或 `proxies:` 列表，也支持仅使用 `proxy-providers:` 的配置），支持 `anytls` 等 mihomo 全部协议
 - 分享链接订阅（base64 或明文逐行）：`ss://` `ssr://` `vmess://` `vless://` `trojan://` `hysteria2://`/`hy2://` `tuic://` `snell://`（`anytls://` 分享链接暂不支持，请用 Clash YAML 形式）
+
+Clash 订阅的原始内容直接交给内置 Mihomo 解析，不重新生成 YAML，也不回写源文件。节点服务器按订阅的 `nameserver-policy`、`proxy-server-nameserver-policy` 等策略解析；不再查询工具写死的公共 DNS 或把解析结果注入 hosts。`-filter` 只筛选测速目标，前置节点和代理组等依赖仍按完整配置保留。代理组使用订阅中的默认选择，不继承其他客户端的当前选择。
+
+测速直接调用内核出站，无额外的本机 SOCKS5 桥接。仅启用测速所需的出站、DNS 解析和规则；不启动订阅中的代理端口、DNS 监听、TUN 或防火墙设置。本地配置的 provider 相对路径以原文件所在目录为基准，URL 订阅使用独立临时工作目录，任务结束后清理。
 
 ## 输出
 
@@ -193,7 +197,7 @@ Android 原生客户端（Jetpack Compose + 预编译 Go 二进制），源码�
 cmd/nekospeed     CLI 入口与编排
 internal/
   subscription    订阅拉取与解析（分享链接 → clash proxy map）
-  nodepool        mihomo adapter.ParseProxy 拨号封装
+  nodepool        完整 Mihomo 配置运行环境与原生代理拨号
   tester          延迟（httptrace）/ 下载测速 / STUN NAT
   unlock          流媒体与 AI 平台解锁检测
   geo             GeoIP（mmdb / 在线 API）与出入口聚合

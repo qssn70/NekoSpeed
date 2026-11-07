@@ -566,3 +566,25 @@ func TestSetProxyInvalid(t *testing.T) {
 		t.Fatalf("恢复默认代理不应报错: %v", err)
 	}
 }
+
+func TestLoadDocumentKeepsOriginalConfig(t *testing.T) {
+	original := []byte("# original comment\r\nproxies: []\r\ndns: {enable: true, nameserver: [127.0.0.1]}\r\n")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(original)
+	}))
+	defer server.Close()
+	doc, err := LoadDocument(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(doc.Config, original) {
+		t.Fatal("downloaded config was reserialized")
+	}
+	if doc.BaseDir != "" {
+		t.Fatal("remote subscription inherited local config directory")
+	}
+	wrapped, err := parseDocument([]byte(base64.StdEncoding.EncodeToString(original)), 0)
+	if err != nil || !bytes.Equal(wrapped.Config, original) {
+		t.Fatalf("base64 config changed: %v", err)
+	}
+}

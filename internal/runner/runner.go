@@ -26,6 +26,9 @@ import (
 // Version 输出图片与 JSON 中的版本标识。
 const Version = "0.1.0"
 
+// 完整配置使用 Mihomo 进程全局状态；不同测速任务不能相互覆盖。
+var runMu sync.Mutex
+
 // Options 一次测速任务的全部参数。
 type Options struct {
 	Source      string // 订阅链接或本地文件路径
@@ -46,7 +49,7 @@ type Options struct {
 	Watermark string // 图片水印文字
 	SpeedURL  string // 自定义测速文件 URL（默认 Google / Cloudflare 大文件）
 	PingURL   string // 延迟测试地址
-	// Preflight 测试前探测服务器域名全部 IP 的可达性并锁定活 IP（默认开）。
+	// Preflight 已停用，仅保留旧调用方兼容；不覆盖订阅的 DNS 和入口。
 	Preflight bool
 	// Bandwidth 手动指定的本地带宽标签（如 "1Gbps"），为空时取测速峰值。
 	Bandwidth string
@@ -64,6 +67,8 @@ type Output struct {
 
 // Run 执行一次完整测速流程，日志通过 logf 输出（logf 可为 nil）。
 func Run(ctx context.Context, o Options, logf func(format string, args ...any)) (*Output, error) {
+	runMu.Lock()
+	defer runMu.Unlock()
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
@@ -80,9 +85,20 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 	testSet := parseTests(o.Tests)
 
 	// 1. 加载订阅
-	nodes, subName, err := subscription.Load(o.Source)
+	doc, err := subscription.LoadDocument(o.Source)
 	if err != nil {
 		return nil, fmt.Errorf("加载订阅失败: %w", err)
+	}
+	nodes, subName := doc.Nodes, doc.Name
+	newDialer := nodepool.NewDialer
+	if doc.Config != nil {
+		session, err := nodepool.OpenConfig(doc.Config, doc.BaseDir, nodes)
+		if err != nil {
+			return nil, err
+		}
+		defer session.Close()
+		nodes, newDialer = session.Nodes, session.NewDialer
+		logf("已直接加载完整订阅配置，使用原始 DNS、hosts、代理组和节点列表；不覆盖入口 IP")
 	}
 	if o.Name != "" {
 		subName = o.Name
@@ -104,14 +120,6 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 		return nil, fmt.Errorf("没有可用节点")
 	}
 	logf("共 %d 个节点，测试项：%s", len(nodes), strings.Join(testSet, ","))
-
-	// 1.5 服务器 IP 预检：DDNS 轮换 IP 池中可能混有被封锁的死 IP，
-	// 探测出当前可达 IP 钉入 mihomo DefaultHosts，避免拨号随机选中死 IP。
-	if o.Preflight {
-		if s := nodepool.FormatPreflightLog(nodepool.PreflightServers(ctx, nodes)); s != "" {
-			logf("%s", s)
-		}
-	}
 
 	// 2. GeoIP 解析器（topo 需要，speed 图本地运营商标签也需要）
 	resolver, err := geo.NewResolver(o.MMDB)
@@ -139,6 +147,7 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 				pingURL:   o.PingURL,
 				pingCount: o.PingCount,
 				resolver:  resolver,
+				newDialer: newDialer,
 			})
 			logf("[%d/%d] %s 完成", i+1, len(nodes), node.Name)
 		}(i, node)
@@ -233,11 +242,16 @@ type testOpts struct {
 	pingURL   string
 	pingCount int
 	resolver  *geo.Resolver
+	newDialer func(model.Node) (model.Dialer, error)
 }
 
 // testNode 对单个节点执行选中的测试项，结果写入 r。
 func testNode(ctx context.Context, node model.Node, r *model.NodeResult, testSet []string, o testOpts) {
-	dialer, err := nodepool.NewDialer(node)
+	newDialer := o.newDialer
+	if newDialer == nil {
+		newDialer = nodepool.NewDialer
+	}
+	dialer, err := newDialer(node)
 	if err != nil {
 		r.Err = err.Error()
 		return

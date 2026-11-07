@@ -35,6 +35,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y fonts-noto-cjk
 
+      - name: Resolve module graph
+        run: go mod tidy
+
+      - name: Upload resolved module files
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-module-files
+          path: |
+            go.mod
+            go.sum
+          retention-days: 1
+
       - name: Run Go tests
         run: go test ./...
 

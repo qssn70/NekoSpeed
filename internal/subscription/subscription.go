@@ -66,16 +66,31 @@ func SetProxy(proxy string) error {
 	return nil
 }
 
-// Load 从 source 加载节点。source 为 http(s) URL 时发起 GET 拉取，否则按本地文件读取。
-// 拿到字节后自动判别格式：含顶层 proxies: 键的 YAML 按 Clash 配置解析；
-// 否则尝试整体 base64 解码后按行解析分享链接；原文本直接以协议 scheme 开头时直接按行解析。
-// 同时返回尽可能提取到的订阅名称（用于输出文件名前缀）。
+// Document 同时保留测速节点和完整配置，避免转换时丢失 DNS、代理组等设置。
+type Document struct {
+	Nodes   []model.Node
+	Name    string
+	Config  []byte // Clash 配置的原始字节，交给内核完整解析，不重新序列化。
+	BaseDir string // 本地配置中 provider 等相对路径的基准目录。
+}
+
+// Load 兼容仅需节点列表的调用方；测速应使用 LoadDocument。
 func Load(source string) ([]model.Node, string, error) {
+	doc, err := LoadDocument(source)
+	if err != nil {
+		return nil, "", err
+	}
+	return doc.Nodes, doc.Name, nil
+}
+
+// LoadDocument 只读取来源，不回写文件；远程来源只拉取一次。
+func LoadDocument(source string) (*Document, error) {
 	var (
-		data   []byte
-		name   string
-		header http.Header
-		err    error
+		data    []byte
+		name    string
+		header  http.Header
+		err     error
+		baseDir string
 	)
 	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
 		data, header, err = fetch(source)
@@ -90,17 +105,21 @@ func Load(source string) ([]model.Node, string, error) {
 				name = extractName(s, data, header)
 			} else {
 				name = extractName(source, data, nil)
+				if abs, absErr := filepath.Abs(source); absErr == nil {
+					baseDir = filepath.Dir(abs)
+				}
 			}
 		}
 	}
 	if err != nil {
-		return nil, "", fmt.Errorf("读取订阅 %q: %w", source, err)
+		return nil, fmt.Errorf("读取订阅 %q: %w", source, err)
 	}
-	nodes, err := parse(data, 0)
+	doc, err := parseDocument(data, 0)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	return nodes, name, nil
+	doc.Name, doc.BaseDir = name, baseDir
+	return doc, nil
 }
 
 // fetch HTTP GET 拉取订阅内容，返回响应体与响应头。
@@ -266,6 +285,14 @@ func sanitizeName(s string) string {
 
 // parse 判别内容格式并解析为节点列表。depth 防止 base64 解码后递归过深。
 func parse(data []byte, depth int) ([]model.Node, error) {
+	doc, err := parseDocument(data, depth)
+	if err != nil {
+		return nil, err
+	}
+	return doc.Nodes, nil
+}
+
+func parseDocument(data []byte, depth int) (*Document, error) {
 	text := strings.TrimSpace(string(data))
 	if text == "" {
 		return nil, fmt.Errorf("订阅内容为空")
@@ -277,10 +304,7 @@ func parse(data []byte, depth int) ([]model.Node, error) {
 		return nil, err
 	}
 	if ok {
-		if len(nodes) == 0 {
-			return nil, fmt.Errorf("Clash 配置中没有可用代理节点")
-		}
-		return nodes, nil
+		return &Document{Nodes: nodes, Config: append([]byte(nil), data...)}, nil
 	}
 
 	// 2. 尝试整体 base64 解码（标准 + RawURL 等编码都试），解码后递归判别
@@ -288,7 +312,7 @@ func parse(data []byte, depth int) ([]model.Node, error) {
 		if decoded, err := base64DecodeAny(text); err == nil {
 			// 解码结果必须像文本订阅（含 scheme 或 YAML），否则说明原文本不是 base64
 			if looksLikeSubscription(string(decoded)) {
-				return parse(decoded, depth+1)
+				return parseDocument(decoded, depth+1)
 			}
 		}
 	}
@@ -298,13 +322,13 @@ func parse(data []byte, depth int) ([]model.Node, error) {
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("未解析到任何节点（无法识别的订阅格式）")
 	}
-	return nodes, nil
+	return &Document{Nodes: nodes}, nil
 }
 
 // looksLikeSubscription 粗略判断文本是否为订阅内容（分享链接或 YAML 配置）。
 func looksLikeSubscription(text string) bool {
 	t := strings.TrimSpace(text)
-	if strings.Contains(t, "proxies:") {
+	if strings.Contains(t, "proxies:") || strings.Contains(t, "proxy-providers:") {
 		return true
 	}
 	for _, line := range splitLines(t) {

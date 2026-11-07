@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/oschwald/maxminddb-golang"
 	"nekospeed/internal/model"
 )
@@ -236,13 +237,13 @@ func resolveServerIP(ctx context.Context, server string) string {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	addrs, err := net.DefaultResolver.LookupIP(ctx, "ip", server)
+	addrs, err := resolver.LookupIPWithResolver(ctx, server, resolver.ProxyServerHostResolver)
 	if err != nil || len(addrs) == 0 {
 		return ""
 	}
 	for _, a := range addrs {
-		if a4 := a.To4(); a4 != nil {
-			return a4.String()
+		if a.Is4() || a.Is4In6() {
+			return a.Unmap().String()
 		}
 	}
 	return addrs[0].String()
