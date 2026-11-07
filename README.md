@@ -40,7 +40,7 @@
 - **线路分析**：入口（节点服务器 IP 归属）/ 出口（落地 IP 归属）聚合表，GeoLite2 mmdb 或在线 API
 - **UDP NAT 类型**：STUN（RFC 5780）检测 FullCone / Restricted / PortRestricted / Symmetric
 - **内嵌 Web UI**：`-web` 一键启动浏览器操作界面（填订阅、实时日志、查看/下载结果图），零额外文件
-- **原始配置测速**：完整加载 Clash 订阅中的 DNS 策略、hosts、代理组、前置链和外部节点列表，不改写订阅或强制替换入口 IP
+- **订阅节点测速**：保留 DNS 策略、hosts、前置链和外部节点列表，忽略分流规则，代理组展开为默认节点，不改写订阅或强制替换入口 IP
 - **输出文件名**：自动从订阅 URL/文件/内容中提取订阅名称，作为输出文件前缀（如 `xx机场_20260724_105252_speed.png`），也可用 `-name` 手动指定
 - **随机主题**：以 16 款柔和浅色主题为主（带 subtle 背景花纹），另有 4 款深色精选与 `default`，每次运行随机一套；也可通过 `-theme` 指定
 
@@ -92,9 +92,11 @@
 - Clash YAML（完整配置或 `proxies:` 列表，也支持仅使用 `proxy-providers:` 的配置），支持 `anytls` 等 mihomo 全部协议
 - 分享链接订阅（base64 或明文逐行）：`ss://` `ssr://` `vmess://` `vless://` `trojan://` `hysteria2://`/`hy2://` `tuic://` `snell://`（`anytls://` 分享链接暂不支持，请用 Clash YAML 形式）
 
-Clash 订阅的原始内容直接交给内置 Mihomo 解析，不重新生成 YAML，也不回写源文件。节点服务器按订阅的 `nameserver-policy`、`proxy-server-nameserver-policy` 等策略解析；不再查询工具写死的公共 DNS 或把解析结果注入 hosts。`-filter` 只筛选测速目标，前置节点和代理组等依赖仍按完整配置保留。代理组使用订阅中的默认选择，不继承其他客户端的当前选择。
+Clash 订阅文件保持原样，不重新生成 YAML，也不回写源文件。在内存中忽略 `rules`、`sub-rules` 和仅用于分流的 `rule-providers`。节点服务器仍按订阅的 `nameserver-policy`、`proxy-server-nameserver-policy` 等策略解析；DNS 策略显式依赖的规则集会单独保留，不参与流量分流。不查询工具写死的公共 DNS，也不把解析结果注入 hosts。
 
-测速直接调用内核出站，无额外的本机 SOCKS5 桥接。仅启用测速所需的出站、DNS 解析和规则；不启动订阅中的代理端口、DNS 监听、TUN 或防火墙设置。本地配置的 provider 相对路径以原文件所在目录为基准，URL 订阅使用独立临时工作目录，任务结束后清理。
+代理组仅在加载时用于展开默认首选节点：优先 `default-selected`，否则取组中的首个节点，嵌套组递归展开。节点的 `dialer-proxy` 或 DNS 对组的引用会指向展开后的固定节点，不运行组的自动选择、故障切换或负载均衡策略。`-filter` 只筛选测速目标，前置节点仍保留；不继承其他客户端的当前选择。
+
+测速直接调用当前节点的内核出站，无额外的本机 SOCKS5 桥接。DNS 的 `respect-rules` / `#RULES` 不再经过订阅分流，按直连处理；显式指定节点或组的 DNS 连接仍使用对应节点。不启动订阅中的代理端口、DNS 监听、TUN 或防火墙设置。本地配置的 provider 相对路径以原文件所在目录为基准，URL 订阅使用独立临时工作目录，任务结束后清理。
 
 ## 输出
 

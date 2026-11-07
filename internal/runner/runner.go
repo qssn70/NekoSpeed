@@ -98,7 +98,7 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 		}
 		defer session.Close()
 		nodes, newDialer = session.Nodes, session.NewDialer
-		logf("已直接加载完整订阅配置，使用原始 DNS、hosts、代理组和节点列表；不覆盖入口 IP")
+		logf("已加载订阅 DNS、hosts 和节点列表；忽略分流规则，代理组按默认首选展开为实际节点；不覆盖入口 IP")
 	}
 	if o.Name != "" {
 		subName = o.Name

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/metacubex/mihomo/adapter"
@@ -24,7 +25,8 @@ import (
 // Mihomo 的解析器和代理注册表是进程全局状态，完整配置任务必须串行使用。
 var configMu sync.Mutex
 
-// ConfigSession 使用原始配置的出站、DNS、hosts、规则与 provider。
+// ConfigSession 使用订阅的出站、DNS、hosts 与 proxy provider。
+// 分流规则不加载；代理组展开为默认首选节点，仅作为前置/DNS 的节点别名。
 // 直接调用内核代理，不启动订阅中的本地监听、DNS 服务端、TUN 或防火墙。
 type ConfigSession struct {
 	Nodes   []model.Node
@@ -55,8 +57,14 @@ func OpenConfig(data []byte, baseDir string, nodes []model.Node) (*ConfigSession
 		configMu.Unlock()
 	}
 
-	// 原始字节直接交给内核；不重新拼装 YAML，也不修改订阅文件。
-	cfg, err := config.Parse(data)
+	// 只调整内存中的运行配置，不回写或重新序列化订阅文件。
+	raw, err := config.UnmarshalRawConfig(data)
+	if err != nil {
+		release()
+		return nil, fmt.Errorf("读取 Clash 配置: %w", err)
+	}
+	removeRouting(raw)
+	cfg, err := config.ParseRawConfig(raw)
 	if err != nil {
 		release()
 		return nil, fmt.Errorf("加载完整 Clash 配置: %w", err)
@@ -86,8 +94,12 @@ func OpenConfig(data []byte, baseDir string, nodes []model.Node) (*ConfigSession
 				_ = closer.Close()
 			}
 		}
+		closed := make(map[C.Proxy]bool)
 		for _, p := range s.proxies {
-			_ = p.Close()
+			if !closed[p] {
+				_ = p.Close()
+				closed[p] = true
+			}
 		}
 		tunnel.UpdateProxies(oldProxies, oldProviders)
 		tunnel.UpdateRules(oldRules, nil, oldRuleProviders)
@@ -112,8 +124,8 @@ func OpenConfig(data []byte, baseDir string, nodes []model.Node) (*ConfigSession
 	}
 
 	tunnel.UpdateProxies(cfg.Proxies, cfg.Providers)
-	tunnel.UpdateRules(cfg.Rules, cfg.SubRules, cfg.RuleProviders)
-	tunnel.SetMode(cfg.General.Mode)
+	tunnel.UpdateRules(nil, nil, cfg.RuleProviders)
+	tunnel.SetMode(tunnel.Direct)
 	inner.New(tunnel.Tunnel)
 	tunnel.OnInnerLoading()
 	resolver.DefaultHosts = resolver.NewHosts(cfg.Hosts)
@@ -136,6 +148,22 @@ func OpenConfig(data []byte, baseDir string, nodes []model.Node) (*ConfigSession
 			return nil, fmt.Errorf("加载节点列表 %q: %w", p.Name(), err)
 		}
 	}
+	aliases, err := expandGroups(cfg.Proxies)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	for _, p := range cfg.Proxies {
+		if p.Type() == C.Selector {
+			_ = p.Close()
+		}
+	}
+	cfg.Proxies = aliases
+	s.proxies = make(map[string]C.Proxy, len(aliases))
+	for name, p := range aliases {
+		s.proxies[name] = p
+	}
+	tunnel.UpdateProxies(aliases, cfg.Providers)
 	seen := make(map[string]bool)
 	for _, n := range s.Nodes {
 		seen[n.Name] = true
@@ -172,6 +200,70 @@ func (s *ConfigSession) NewDialer(node model.Node) (model.Dialer, error) {
 }
 
 func (s *ConfigSession) Close() { s.once.Do(s.close) }
+
+// 只保留 DNS 策略显式依赖的 rule provider，不下载或应用分流规则集。
+func removeRouting(raw *config.RawConfig) {
+	raw.Rule, raw.SubRules = nil, nil
+	raw.Mode = tunnel.Direct
+	raw.Sniffer = config.RawSniffer{}
+	needed := make(map[string]bool)
+	add := func(value string) {
+		if strings.HasPrefix(strings.ToLower(value), "rule-set:") {
+			for _, name := range strings.Split(value[len("rule-set:"):], ",") {
+				needed[strings.TrimSpace(name)] = true
+			}
+		} else if fields := strings.Split(value, ","); len(fields) > 1 && strings.EqualFold(fields[0], "RULE-SET") {
+			needed[strings.TrimSpace(fields[1])] = true
+		}
+	}
+	for pair := raw.DNS.NameServerPolicy.Oldest(); pair != nil; pair = pair.Next() {
+		add(pair.Key)
+	}
+	for pair := raw.DNS.ProxyServerNameserverPolicy.Oldest(); pair != nil; pair = pair.Next() {
+		add(pair.Key)
+	}
+	for _, value := range raw.DNS.FakeIPFilter {
+		add(value)
+	}
+	for name := range raw.RuleProvider {
+		if !needed[name] {
+			delete(raw.RuleProvider, name)
+		}
+	}
+	// 用内核自身的排序、filter/use/default-selected 逻辑找出默认首选，
+	// 但不保留自动测速、故障切换或负载均衡等组策略。
+	for _, group := range raw.ProxyGroup {
+		group["type"] = "select"
+		group["interval"] = 0
+	}
+}
+
+func expandGroups(proxies map[string]C.Proxy) (map[string]C.Proxy, error) {
+	aliases := make(map[string]C.Proxy, len(proxies))
+	var expand func(C.Proxy, map[string]bool) (C.Proxy, error)
+	expand = func(p C.Proxy, visiting map[string]bool) (C.Proxy, error) {
+		if p.Type() != C.Selector {
+			return p, nil
+		}
+		if visiting[p.Name()] {
+			return nil, fmt.Errorf("代理组 %q 的默认首选存在循环引用", p.Name())
+		}
+		visiting[p.Name()] = true
+		next := p.Unwrap(&C.Metadata{}, false)
+		if next == nil {
+			return nil, fmt.Errorf("代理组 %q 没有默认首选节点", p.Name())
+		}
+		return expand(next, visiting)
+	}
+	for name, p := range proxies {
+		actual, err := expand(p, make(map[string]bool))
+		if err != nil {
+			return nil, err
+		}
+		aliases[name] = actual
+	}
+	return aliases, nil
+}
 
 // 与 Mihomo executor 的出站 DNS 初始化一致，但不启动 dns.listen。
 func installDNS(c *config.DNS, ipv6 bool) {
