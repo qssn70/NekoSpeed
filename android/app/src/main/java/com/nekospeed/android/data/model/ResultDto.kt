@@ -34,6 +34,10 @@ data class NodeResult(
 
 @Serializable
 data class LatencyResult(
+    val httpRTT: List<Int> = emptyList(),
+    val avgHttpRTT: Int = 0,
+    val httpPacketLoss: Double = 0.0,
+    // 保留旧字段以读取历史报告，不将旧TLS值当作HTTP RTT。
     val tlsRTT: List<Int> = emptyList(),
     val httpsPing: List<Int> = emptyList(),
     val avgTlsRTT: Int = 0,

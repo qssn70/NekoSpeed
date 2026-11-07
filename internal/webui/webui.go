@@ -48,7 +48,6 @@ func Serve(addr string) error {
 	return http.Serve(ln, mux)
 }
 
-
 // browserURL 将监听套接字地址转换成可访问的浏览器 URL。
 // 0.0.0.0 和 [::] 是通配监听地址，不能直接作为访问主机名使用。
 func browserURL(listenAddr string) (string, error) {
@@ -167,7 +166,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 			Single:      req.Single,
 			Filter:      req.Filter,
 			OutDir:      outDir,
-			PingURL:     "http://www.gstatic.com/generate_204",
+			PingURL:     "https://www.gstatic.com/generate_204",
 			Preflight:   true,
 			Proxy:       req.Proxy,
 		}, s.hub.logf)

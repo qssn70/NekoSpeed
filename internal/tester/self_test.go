@@ -62,18 +62,12 @@ func newSpeedServer(t *testing.T) *httptest.Server {
 func TestLatencyDirect(t *testing.T) {
 	srv := newPingServer(t)
 	res := Latency(context.Background(), directDialer(), srv.URL, 3)
-
-	if res.AvgHTTPS <= 0 {
-		t.Fatalf("AvgHTTPS 应为非零正值，实际 %d（loss=%v）", res.AvgHTTPS, res.PacketLoss)
+	if res.AvgHTTPRTT <= 0 || len(res.HTTPRTT) != 3 || res.HTTPPacketLoss != 0 {
+		t.Fatalf("HTTP复用采样失败: %+v", res)
 	}
-	if len(res.HTTPSPing) != 3 || len(res.TLSRTT) != 3 {
-		t.Fatalf("成功 3 次应有 3 条记录，实际 HTTPSPing=%d TLSRTT=%d", len(res.HTTPSPing), len(res.TLSRTT))
-	}
-	if res.PacketLoss != 0 {
-		t.Fatalf("本地直连不应丢包，实际 %v", res.PacketLoss)
-	}
-	if res.HTTPCode != http.StatusNoContent {
-		t.Fatalf("HTTPCode 应为 204，实际 %d", res.HTTPCode)
+	// 此测试服务仅支持HTTP；HTTPS失败不能吞掉HTTP结果。
+	if res.AvgHTTPS != 0 || len(res.HTTPSPing) != 0 || res.PacketLoss != 1 {
+		t.Fatalf("HTTP和HTTPS必须独立记录失败: %+v", res)
 	}
 }
 
@@ -83,10 +77,10 @@ func TestLatencyAllFailed(t *testing.T) {
 		return nil, fmt.Errorf("dial refused")
 	})
 	res := Latency(context.Background(), dialer, "http://example.invalid/generate_204", 2)
-	if res.AvgHTTPS != 0 || res.AvgTLSRTT != 0 {
-		t.Fatalf("全部失败时 Avg 应为 0，实际 HTTPS=%d TLS=%d", res.AvgHTTPS, res.AvgTLSRTT)
+	if res.AvgHTTPS != 0 || res.AvgHTTPRTT != 0 {
+		t.Fatalf("全部失败时 Avg 应为 0，实际 HTTPS=%d HTTP RTT=%d", res.AvgHTTPS, res.AvgHTTPRTT)
 	}
-	if res.PacketLoss != 1 {
+	if res.PacketLoss != 1 || res.HTTPPacketLoss != 1 {
 		t.Fatalf("丢包率应为 1，实际 %v", res.PacketLoss)
 	}
 }

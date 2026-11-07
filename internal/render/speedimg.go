@@ -12,7 +12,7 @@ var (
 	aiPlatforms    = []string{"openai", "copilot", "gemini", "llama", "claude", "perplexity", "sora", "grok"}
 )
 
-const footerLatencyNote = "已核实 TLS 证书。TLS RTT 为单次数据交换延迟， HTTPS Ping 为单次请求体感延迟。"
+const footerLatencyNote = "HTTP RTT 为连接预热后第二次请求延迟；HTTPS 延迟为新连接首次请求到首字节，启用证书校验。"
 
 // baseCols 返回 序号|节点名称|类型 三列。
 func baseCols() []Col {
@@ -32,19 +32,19 @@ func baseCells(r *model.NodeResult, theme Theme) []Cell {
 	}
 }
 
-// latencyCells 返回 TLS RTT 与 HTTPS延迟 单元格（失败红底 -）。
+// latencyCells 返回 HTTP RTT 与 HTTPS延迟 单元格（失败红底 -）。
 func latencyCells(r *model.NodeResult, theme Theme) []Cell {
 	fail := Cell{Text: "-", BG: theme.FailBG, Align: AlignCenter}
-	tls, https := fail, fail
+	httpRTT, https := fail, fail
 	if r.Err == "" && r.Latency != nil {
-		if r.Latency.AvgTLSRTT > 0 {
-			tls = Cell{Text: fmt.Sprintf("%dms", r.Latency.AvgTLSRTT), BG: theme.latencyColor(r.Latency.AvgTLSRTT), Align: AlignCenter}
+		if r.Latency.AvgHTTPRTT > 0 {
+			httpRTT = Cell{Text: fmt.Sprintf("%dms", r.Latency.AvgHTTPRTT), BG: theme.latencyColor(r.Latency.AvgHTTPRTT), Align: AlignCenter}
 		}
 		if r.Latency.AvgHTTPS > 0 {
 			https = Cell{Text: fmt.Sprintf("%dms", r.Latency.AvgHTTPS), BG: theme.latencyColor(r.Latency.AvgHTTPS), Align: AlignCenter}
 		}
 	}
-	return []Cell{tls, https}
+	return []Cell{httpRTT, https}
 }
 
 // speedCells 返回 平均速度|最高速度|每秒速度 单元格。
@@ -104,7 +104,7 @@ func SaveSpeedImage(results []*model.NodeResult, meta Meta, path string) error {
 		}
 	}
 	cols := append(baseCols(),
-		Col{Header: "TLS RTT"},
+		Col{Header: "HTTP RTT"},
 		Col{Header: "HTTPS延迟"},
 		Col{Header: "平均速度"},
 		Col{Header: "最高速度"},

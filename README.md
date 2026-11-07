@@ -33,7 +33,7 @@
 
 ## 功能
 
-- **测速**：多/单线程下载测速（每秒速度序列、平均、峰值）、TLS RTT、HTTPS 延迟（httptrace 精确计时，TLS1.3）
+- **测速**：多/单线程下载测速（每秒速度序列、平均、峰值）、HTTP 复用 RTT、HTTPS 首次请求延迟（httptrace 精确计时，TLS1.3）
 - **本地网络标注**：自动探测本机公网 IP 的运营商/城市，并在测速图/综合图标题显示（如 `上海电信@1Gbps`），可手动指定带宽
 - **流媒体解锁**：YouTube / Netflix / Disney+ / B站港澳台 / TikTok / DAZN / Abema / 巴哈姆特 / Steam 货币 / Spotify
 - **AI 解锁**：OpenAI / Copilot / Gemini / MetaAI / Claude / Perplexity / Sora
@@ -82,7 +82,7 @@
 | `-name` | 自动 | 订阅名称，用于输出文件名前缀（覆盖自动提取） |
 | `-theme` | 随机 | 渲染主题，如 `mint_light` / `rose_light` / `nord_dark` / `default`，为空时随机 |
 | `-speed-url` | - | 自定义测速文件 URL（默认 Google / Cloudflare 大文件） |
-| `-ping-url` | `http://www.gstatic.com/generate_204` | 延迟测试地址 |
+| `-ping-url` | `https://www.gstatic.com/generate_204` | 延迟测试目标，分别请求同一路径的 HTTP 和 HTTPS 地址 |
 | `-ping-count` | 4 | 每节点延迟测试次数 |
 | `-preflight` | true | 测试前多 DNS 采样服务器 IP 并 TCP 探测，锁定可达 IP（应对 DDNS 轮换 IP 被封锁） |
 | `-web` | - | 启动内嵌 Web UI（如 `:18189` 或 `18189`），非空即启用 |
@@ -104,6 +104,8 @@
 | `*_full.png` | 综合图（测速 + 解锁合并宽图，选 speed 且选 media/ai 时生成） |
 | `*_topology.png` | 线路分析图（入口/出口表，选 topo 时生成） |
 | `*_result.json` | 全部原始数据（延迟序列、每秒速度、解锁状态、GeoIP、NAT） |
+
+HTTP RTT：每次采样先以 HEAD 预热 HTTP 连接，再计第二次请求到首字节的耗时；未能复用连接时记为失败。HTTPS 延迟：每次新建 TLS 连接，从请求开始计到响应首字节，验证证书并要求 TLS 1.3。HTTP 与 HTTPS 独立记录样本及失败率，JSON 字段分别为 `httpRTT` / `avgHttpRTT` / `httpPacketLoss` 和 `httpsPing` / `avgHTTPS` / `packetLoss`。
 
 ## 排障
 

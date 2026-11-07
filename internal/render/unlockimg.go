@@ -16,7 +16,7 @@ func platformCols(platforms []string) []Col {
 // SaveFullImage 渲染综合图（*_full.png）：测速列 + 流媒体列 + AI 列。
 func SaveFullImage(results []*model.NodeResult, meta Meta, path string) error {
 	cols := append(baseCols(),
-		Col{Header: "TLS RTT"},
+		Col{Header: "HTTP RTT"},
 		Col{Header: "HTTPS延迟"},
 		Col{Header: "平均速度"},
 		Col{Header: "最高速度"},
@@ -46,7 +46,7 @@ func SaveFullImage(results []*model.NodeResult, meta Meta, path string) error {
 // SaveMediaImage 渲染流媒体图（*_media.png）：延迟列 + 媒体各列 + openai。
 func SaveMediaImage(results []*model.NodeResult, meta Meta, path string) error {
 	cols := append(baseCols(),
-		Col{Header: "TLS RTT"},
+		Col{Header: "HTTP RTT"},
 		Col{Header: "HTTPS延迟"},
 	)
 	cols = append(cols, platformCols(mediaPlatforms)...)

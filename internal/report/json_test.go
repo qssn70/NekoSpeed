@@ -17,9 +17,9 @@ func TestSaveJSONKeys(t *testing.T) {
 		{
 			Node: model.Node{Index: 1, Name: "节点A", Type: "Vless", Server: "example.com"},
 			Latency: &model.LatencyResult{
-				TLSRTT:     []int{100, 110},
+				HTTPRTT:    []int{100, 110},
 				HTTPSPing:  []int{200, 210},
-				AvgTLSRTT:  105,
+				AvgHTTPRTT: 105,
 				AvgHTTPS:   205,
 				PacketLoss: 0.5,
 				HTTPCode:   204,
@@ -59,7 +59,7 @@ func TestSaveJSONKeys(t *testing.T) {
 	wantKeys := []string{
 		`"version"`, `"startTime"`, `"elapsed"`, `"total"`, `"succeeded"`, `"nodes"`, `"topology"`,
 		`"index"`, `"name"`, `"type"`, `"server"`,
-		`"latency"`, `"tlsRTT"`, `"httpsPing"`, `"avgTlsRTT"`, `"avgHTTPS"`, `"packetLoss"`, `"httpCode"`,
+		`"latency"`, `"httpRTT"`, `"httpsPing"`, `"avgHttpRTT"`, `"avgHTTPS"`, `"packetLoss"`, `"httpCode"`, `"httpPacketLoss"`,
 		`"speed"`, `"perSecond"`, `"avg"`, `"max"`, `"threads"`,
 		`"nat"`, `"media"`, `"ai"`, `"platform"`, `"status"`, `"region"`, `"info"`,
 		`"inbound"`, `"outbound"`, `"ip"`, `"country"`, `"city"`, `"asn"`, `"org"`, `"isp"`, `"stack"`,
@@ -72,7 +72,8 @@ func TestSaveJSONKeys(t *testing.T) {
 	}
 
 	badKeys := []string{
-		`"AvgTLSRTT"`, `"AvgHTTPS"`, `"PacketLoss"`, `"HTTPCode"`, `"TLSRTT"`, `"HTTPSPing"`,
+		`"tlsRTT"`, `"avgTlsRTT"`,
+		`"AvgHTTPRTT"`, `"AvgHTTPS"`, `"PacketLoss"`, `"HTTPCode"`, `"HTTPRTT"`, `"HTTPSPing"`,
 		`"PerSecond"`, `"Avg"`, `"Max"`, `"Threads"`,
 		`"Platform"`, `"Status"`, `"Region"`, `"Info"`,
 		`"IP"`, `"Country"`, `"City"`, `"ASN"`, `"Org"`, `"ISP"`, `"Stack"`,

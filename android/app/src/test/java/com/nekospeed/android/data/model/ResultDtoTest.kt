@@ -27,9 +27,10 @@ class ResultDtoTest {
           "type": "Hysteria2",
           "server": "hk.example.com",
           "latency": {
-            "tlsRTT": [120, 130],
+            "httpRTT": [120, 130],
             "httpsPing": [150, 160],
-            "avgTlsRTT": 125,
+            "avgHttpRTT": 125,
+            "httpPacketLoss": 0.0,
             "avgHTTPS": 155,
             "packetLoss": 0.0,
             "httpCode": 200
@@ -100,6 +101,8 @@ class ResultDtoTest {
         assertTrue(first.isOK)
         assertNotNull(first.latency)
         assertEquals(155, first.latency?.avgHTTPS)
+        assertEquals(125, first.latency?.avgHttpRTT)
+        assertEquals(listOf(120, 130), first.latency?.httpRTT)
         assertNotNull(first.speed)
         assertEquals(1500000.0, first.speed?.avg ?: 0.0, 0.001)
         assertEquals(1, first.media?.size)

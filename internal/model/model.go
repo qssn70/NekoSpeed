@@ -50,12 +50,13 @@ func HTTPClient(d Dialer, timeout time.Duration) *http.Client {
 
 // LatencyResult 延迟测试结果（毫秒）。
 type LatencyResult struct {
-	TLSRTT     []int   `json:"tlsRTT"`     // 每次 TLS RTT
-	HTTPSPing  []int   `json:"httpsPing"`  // 每次 HTTPS 完整请求延迟
-	AvgTLSRTT  int     `json:"avgTlsRTT"`  // 平均 TLS RTT（0 表示全部失败）
-	AvgHTTPS   int     `json:"avgHTTPS"`   // 平均 HTTPS 延迟
-	PacketLoss float64 `json:"packetLoss"` // 丢包率 0~1
-	HTTPCode   int     `json:"httpCode"`   // 最后一次 HTTP 状态码
+	HTTPRTT        []int   `json:"httpRTT"`        // HTTP连接预热后第二次请求到首字节
+	HTTPSPing      []int   `json:"httpsPing"`      // 每次 HTTPS 完整请求延迟
+	AvgHTTPRTT     int     `json:"avgHttpRTT"`     // 平均 HTTP 复用 RTT（0 表示全部失败）
+	AvgHTTPS       int     `json:"avgHTTPS"`       // 平均 HTTPS 延迟
+	PacketLoss     float64 `json:"packetLoss"`     // HTTPS探测失败率 0~1
+	HTTPPacketLoss float64 `json:"httpPacketLoss"` // HTTP复用探测失败率 0~1
+	HTTPCode       int     `json:"httpCode"`       // 最后一次 HTTP 状态码
 }
 
 // SpeedResult 下行测速结果（字节/秒）。
@@ -163,5 +164,5 @@ type NodeResult struct {
 
 // OK 返回节点是否可用（延迟、测速、拓扑、解锁任一成功）。
 func (r *NodeResult) OK() bool {
-	return r.Err == "" && ((r.Latency != nil && r.Latency.AvgHTTPS > 0) || (r.Speed != nil && r.Speed.Avg > 0) || (r.Inbound != nil && r.Inbound.IP != "") || (r.Outbound != nil && r.Outbound.IP != "") || len(r.Media) > 0 || len(r.AI) > 0)
+	return r.Err == "" && ((r.Latency != nil && (r.Latency.AvgHTTPS > 0 || r.Latency.AvgHTTPRTT > 0)) || (r.Speed != nil && r.Speed.Avg > 0) || (r.Inbound != nil && r.Inbound.IP != "") || (r.Outbound != nil && r.Outbound.IP != "") || len(r.Media) > 0 || len(r.AI) > 0)
 }

@@ -29,7 +29,7 @@ func main() {
 		watermark   = flag.String("watermark", "", "图片水印文字（默认无水印）")
 		name        = flag.String("name", "", "订阅名称，用于输出文件名前缀（覆盖自动提取）")
 		speedURL    = flag.String("speed-url", "", "自定义测速文件 URL（默认 Google/Cloudflare 大文件）")
-		pingURL     = flag.String("ping-url", "http://www.gstatic.com/generate_204", "延迟测试地址")
+		pingURL     = flag.String("ping-url", "https://www.gstatic.com/generate_204", "HTTP/HTTPS 延迟测试目标（复用 RTT 与首次请求）")
 		pingCount   = flag.Int("ping-count", 4, "每节点延迟测试次数")
 		bandwidth   = flag.String("bandwidth", "", "本地带宽标签（如 1Gbps/1000Mbps），未指定时自动取测速峰值")
 		preflight   = flag.Bool("preflight", true, "测试前探测服务器 IP 可达性并锁定活 IP（应对 DDNS 轮换 IP 被封锁）")
