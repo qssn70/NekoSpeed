@@ -87,9 +87,7 @@ android/
 | App | `NekoSpeedApp.kt` | ✅ | 空 Application 占位 |
 | 构建脚本 | `scripts/build.sh`（android 目标） | ✅ | 产物 gzip 后直出 assets |
 | 二进制 | `assets/nekospeed-android-arm64.gz` | ✅ | go1.25.0 交叉编译，gzip 后约 10MB（不入 git） |
-| 测试 | `src/test/.../ResultDtoTest.kt` | ✅ | Kotlin DTO 解析契约测试 |
 | Go 契约 | `internal/model/model.go` json tags | ✅ | 7 个结构体小写 tag（0.1） |
-| Go 契约 | `internal/report/json_test.go` | ✅ | 键名契约回归测试 |
 | Go 字体 | `internal/render/font.go` Android 路径 | ✅ | 4 个 /system/fonts 候选（0.5） |
 
 ## 4. 实施路线图

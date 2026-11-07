@@ -29,9 +29,7 @@
 | `InboundEntry` | `index` `geo` `cluster` `outCount` |
 | `OutboundEntry` | `inboundIndex` `geo` `cluster` `nodeName` |
 
-已确认安全：webui 不消费这些键；Go 测试直接访问字段不依赖 tag。
-
-**新增回归测试** `internal/report/json_test.go`：断言输出含 `avgTlsRTT`/`perSecond`/`inbounds`，不含 `AvgTLSRTT`。
+已确认安全：webui 不消费这些键。
 
 ### 0.2 Kotlin DTO 对齐（`ResultDto.kt`）
 - `LatencyResult` 补 `tlsRTT`/`httpsPing`/`httpCode` 可选字段（保真）
@@ -54,7 +52,7 @@
 /system/fonts/DroidSansFallbackFull.ttf
 /system/fonts/DroidSansFallback.ttf
 ```
-桌面端行为不变，`render_test.go` 兜底回归。
+桌面端行为不变。
 
 ## Phase 1：构建工具链 + 可编译 APK
 
@@ -93,8 +91,7 @@ android/**/build/
 
 | 项 | 命令/方式 | 环境 |
 |---|---|---|
-| Go 编译 | `.tools/go/bin/go build ./...` | 本机 |
-| Go 测试（含新契约测试） | `.tools/go/bin/go test ./...` | 本机 |
+| Go 编译 | GitHub Actions 编译与 CLI 启动检查 | GitHub Runner |
 | arm64 交叉编译 | 1.6 步骤 + `file` 验证 ELF aarch64 | 本机 |
 | APK 编译 | `./gradlew assembleDebug` | Android Studio 环境（手动验证） |
 | 真机冒烟（释放二进制+跑订阅） | 安装 APK 实测 | 同上，下个 Session |
@@ -102,5 +99,4 @@ android/**/build/
 ## 风险与备注
 - **字体运行时风险**：极个别设备无 CJK 系统字体仍会导致运行失败，已记录为后续"内置字体兜底" backlog 项
 - **Go 二进制体积**：约 23MB，APK 中可考虑压缩存储（后续优化项，本期不做）
-- **Kotlin 单元测试**：需 JDK17 环境才能跑，连同 DTO 解析测试一并延后到 Session 2
 - **预计改动文件**：Go 2 个（model.go、font.go）+ 新增 1 个测试；Kotlin 3 个（ResultDto、NekoSpeedRunner、RunViewModel）+ 新增 2 个入口类；资源 3 个新文件；脚本/配置 3 个；文档 2 个

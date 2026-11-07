@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/metacubex/mihomo v1.19.29
-	github.com/miekg/dns v1.1.63
 	github.com/oschwald/maxminddb-golang v1.13.1
 	github.com/pion/stun v0.6.1
 	golang.org/x/image v0.44.0
@@ -98,6 +97,7 @@ require (
 	github.com/metacubex/utls v1.8.7 // indirect
 	github.com/metacubex/wireguard-go v0.0.0-20250820062549-a6cecdd7f57f // indirect
 	github.com/metacubex/yamux v0.0.0-20250918083631-dd5f17c0be49 // indirect
+	github.com/miekg/dns v1.1.63 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mroth/weightedrand/v2 v2.1.0 // indirect
 	github.com/oasisprotocol/deoxysii v0.0.0-20220228165953-2091330c22b7 // indirect
