@@ -35,13 +35,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goos: [linux, windows, darwin]
+        goos: [linux, windows, darwin, android]
         goarch: [amd64, arm64]
     env:
-      CGO_ENABLED: '0'
+      CGO_ENABLED: ${{ matrix.goos == 'android' && '1' || '0' }}
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
       NEKOSPEED_VERSION: ${{ inputs.version }}
+      NEKOSPEED_NDK_VERSION: '29.0.14206865'
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -54,6 +55,24 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+
+      - name: Set up Android NDK compiler
+        if: matrix.goos == 'android'
+        shell: bash
+        run: |
+          ndk_root="$ANDROID_HOME/ndk/$NEKOSPEED_NDK_VERSION"
+          if [[ ! -d "$ndk_root" ]]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NEKOSPEED_NDK_VERSION"
+          fi
+          ndk_bin="$ndk_root/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          case "$GOARCH" in
+            arm64) target_triple=aarch64-linux-android ;;
+            amd64) target_triple=x86_64-linux-android ;;
+            *) echo "Unsupported Android architecture: $GOARCH" >&2; exit 1 ;;
+          esac
+          compiler="$ndk_bin/${target_triple}26-clang"
+          [[ -x "$compiler" ]]
+          printf 'CC=%s\nNEKOSPEED_NDK_BIN=%s\n' "$compiler" "$ndk_bin" >> "$GITHUB_ENV"
 
       - name: Check module graph
         run: go mod tidy -diff
@@ -70,8 +89,10 @@ jobs:
           fi
           binary="nekospeed-${GOOS}-${GOARCH}"
           if [[ "$GOOS" == windows ]]; then binary+='.exe'; fi
+          build_args=()
+          if [[ "$GOOS" == android ]]; then build_args+=(-buildmode=pie); fi
           mkdir -p package dist
-          go build -trimpath -ldflags="-s -w -X nekospeed/internal/runner.Version=${NEKOSPEED_VERSION}" -o "package/$binary" ./cmd/nekospeed
+          go build "${build_args[@]}" -trimpath -ldflags="-s -w -X nekospeed/internal/runner.Version=${NEKOSPEED_VERSION}" -o "package/$binary" ./cmd/nekospeed
           cp README.md LICENSE package/
           if [[ "$GOOS" == linux && "$GOARCH" == amd64 ]]; then
             "./package/$binary" -h >/dev/null 2>&1
@@ -84,6 +105,22 @@ jobs:
             tar -czf "dist/$archive" -C package "$binary" README.md LICENSE
           fi
           (cd dist && sha256sum "$archive" > "$archive.sha256")
+
+      - name: Check Android ELF format
+        if: matrix.goos == 'android'
+        shell: bash
+        run: |
+          binary="package/nekospeed-android-${GOARCH}"
+          file "$binary"
+          elf_header="$("$NEKOSPEED_NDK_BIN/llvm-readelf" --file-header "$binary")"
+          program_headers="$("$NEKOSPEED_NDK_BIN/llvm-readelf" --program-headers "$binary")"
+          [[ "$elf_header" == *'Type:'*'DYN'* ]]
+          [[ "$program_headers" == *'/system/bin/linker64'* ]]
+          if [[ "$GOARCH" == arm64 ]]; then
+            [[ "$elf_header" == *'AArch64'* ]]
+          else
+            [[ "$elf_header" == *'Advanced Micro Devices X86-64'* ]]
+          fi
 
       - name: Check config loading without subscription routing
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'

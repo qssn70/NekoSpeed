@@ -125,17 +125,25 @@ HTTP RTT：每次采样先以 HEAD 预热 HTTP 连接，再计第二次请求到
 
 ### GitHub Actions 构建与发布
 
-[Build NekoSpeed](https://github.com/qssn70/NekoSpeed/actions/workflows/build-linux.yml) 在主分支代码变更后自动构建，也可以手动运行。提供以下六种产物，每份包含程序、README、许可证和压缩包 SHA256：
+[Build NekoSpeed](https://github.com/qssn70/NekoSpeed/actions/workflows/build-linux.yml) 在主分支代码变更后自动构建，也可以手动运行。提供以下八种产物，每份包含程序、README、许可证和压缩包 SHA256：
 
 | 系统 | 架构 | 压缩格式 |
 |---|---|---|
 | Linux | amd64、arm64 | `.tar.gz` |
 | Windows | amd64、arm64 | `.zip` |
 | macOS（darwin） | amd64、arm64 | `.tar.gz` |
+| Android 核心程序 | amd64、arm64 | `.tar.gz` |
+
+Android 产物是命令行核心，不是 APK。使用 NDK r29、Android API 26（Android 8.0+）、CGO 和 PIE 编译，链接 Android bionic，CI 校验 ELF 架构与 `/system/bin/linker64`。解压后的 `nekospeed-android-arm64` / `nekospeed-android-amd64` 可供 Android 客户端打包，也可在设备上运行，例如：
+
+```sh
+chmod +x nekospeed-android-arm64
+/system/bin/linker64 "$PWD/nekospeed-android-arm64" -h
+```
 
 在 [Publish Release](https://github.com/qssn70/NekoSpeed/actions/workflows/release.yml) 中点击 **Run workflow**，填写版本标签（如 `v0.2.0`），即可重新构建全部平台并创建 GitHub Release，附带全部压缩包、统一的 `SHA256SUMS` 和自动生成的更新说明。可选择草稿或预发布；默认正式发布。工作流使用自带的 GitHub token，无需额外配置密钥。已有 Release 不会被覆盖，已有标签若指向其他提交则会停止发布。
 
-CI 和 Release 共用一套构建流程，版本标签会写入程序生成的报告。推送代码只触发构建，发布需手动运行发布工作流。编译检查覆盖全部六个平台，程序启动检查在 Linux amd64 上执行。
+CI 和 Release 共用一套构建流程，版本标签会写入程序生成的报告。推送代码只触发构建，发布需手动运行发布工作流。编译检查覆盖全部八个平台，程序启动检查在 Linux amd64 上执行，Android 核心另做 ELF 格式检查。
 
 ### 本地构建
 
