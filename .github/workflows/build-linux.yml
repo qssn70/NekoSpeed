@@ -30,6 +30,11 @@ jobs:
           go-version-file: go.mod
           cache: false
 
+      - name: Install fonts for rendering tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y fonts-noto-cjk
+
       - name: Run Go tests
         run: go test ./...
 
