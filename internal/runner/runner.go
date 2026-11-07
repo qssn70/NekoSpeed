@@ -40,12 +40,12 @@ type Options struct {
 	MMDB        string // MaxMind GeoIP2 mmdb 路径（空则用在线 API）
 	FontPath    string // 自定义中文字体路径
 	// Name 手动指定订阅名称，用于输出文件名前缀（覆盖自动提取）。
-	Name      string
+	Name string
 	// Theme 手动指定渲染主题，为空时随机选择。
 	Theme     string
 	Watermark string // 图片水印文字
-	SpeedURL    string // 自定义测速文件 URL（默认 Google / Cloudflare 大文件）
-	PingURL     string // 延迟测试地址
+	SpeedURL  string // 自定义测速文件 URL（默认 Google / Cloudflare 大文件）
+	PingURL   string // 延迟测试地址
 	// Preflight 测试前探测服务器域名全部 IP 的可达性并锁定活 IP（默认开）。
 	Preflight bool
 	// Bandwidth 手动指定的本地带宽标签（如 "1Gbps"），为空时取测速峰值。
@@ -346,7 +346,7 @@ func localizeISP(isp string) string {
 	return isp
 }
 
-// maxBandwidth 取所有节点测速峰值的最大值，格式化为 "1Gbps" / "500Mbps"。
+// maxBandwidth 取所有节点测速峰值的最大值，统一格式化为 Mbps。
 // 手动指定 override 时优先使用 override；没有有效速度时返回空字符串。
 func maxBandwidth(results []*model.NodeResult, override string) string {
 	if override != "" {
@@ -362,16 +362,8 @@ func maxBandwidth(results []*model.NodeResult, override string) string {
 		return ""
 	}
 	mbps := maxBPS * 8 / 1e6
-	if mbps >= 1000 {
-		gbps := mbps / 1000
-		if gbps == float64(int(gbps)) {
-			return fmt.Sprintf("%dGbps", int(gbps))
-		}
-		return fmt.Sprintf("%.1fGbps", gbps)
-	}
 	if mbps < 1 {
 		return "<1Mbps"
 	}
 	return fmt.Sprintf("%.0fMbps", mbps)
 }
-

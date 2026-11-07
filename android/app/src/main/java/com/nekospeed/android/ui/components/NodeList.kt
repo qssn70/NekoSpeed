@@ -151,12 +151,7 @@ internal fun StatusChip(text: String, color: Color) {
 }
 
 internal fun formatSpeed(bytesPerSecond: Double): String {
-    return when {
-        bytesPerSecond >= 1_000_000_000 -> String.format(Locale.US, "%.2f GB/s", bytesPerSecond / 1_000_000_000)
-        bytesPerSecond >= 1_000_000 -> String.format(Locale.US, "%.2f MB/s", bytesPerSecond / 1_000_000)
-        bytesPerSecond >= 1_000 -> String.format(Locale.US, "%.2f KB/s", bytesPerSecond / 1_000)
-        else -> String.format(Locale.US, "%.0f B/s", bytesPerSecond)
-    }
+    return String.format(Locale.US, "%.2f Mbps", bytesPerSecond.coerceAtLeast(0.0) * 8 / 1_000_000)
 }
 
 @Composable

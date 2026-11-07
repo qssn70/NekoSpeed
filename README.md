@@ -33,7 +33,7 @@
 
 ## 功能
 
-- **测速**：多/单线程下载测速（每秒速度序列、平均、峰值）、HTTP 复用 RTT、HTTPS 首次请求延迟（httptrace 精确计时，TLS1.3）
+- **测速**：多/单线程下载测速（每秒速度序列、平均、峰值，统一显示 Mbps）、HTTP 复用 RTT、HTTPS 首次请求延迟（httptrace 精确计时，TLS1.3）
 - **本地网络标注**：自动探测本机公网 IP 的运营商/城市，并在测速图/综合图标题显示（如 `上海电信@1Gbps`），可手动指定带宽
 - **流媒体解锁**：YouTube / Netflix / Disney+ / B站港澳台 / TikTok / DAZN / Abema / 巴哈姆特 / Steam 货币 / Spotify
 - **AI 解锁**：OpenAI / Copilot / Gemini / MetaAI / Claude / Perplexity / Sora
@@ -106,6 +106,8 @@
 | `*_result.json` | 全部原始数据（延迟序列、每秒速度、解锁状态、GeoIP、NAT） |
 
 HTTP RTT：每次采样先以 HEAD 预热 HTTP 连接，再计第二次请求到首字节的耗时；未能复用连接时记为失败。HTTPS 延迟：每次新建 TLS 连接，从请求开始计到响应首字节，验证证书并要求 TLS 1.3。HTTP 与 HTTPS 独立记录样本及失败率，JSON 字段分别为 `httpRTT` / `avgHttpRTT` / `httpPacketLoss` 和 `httpsPing` / `avgHTTPS` / `packetLoss`。
+
+测速图、综合图和 Android 节点列表的平均/峰值速度统一显示为 Mbps，保留两位小数，换算公式为 `字节/秒 × 8 ÷ 1,000,000`。JSON 速度原始值仍以字节/秒存储。标题自动估计的带宽也使用 Mbps；手动传入 `-bandwidth` 时保留指定文本。
 
 ## 排障
 

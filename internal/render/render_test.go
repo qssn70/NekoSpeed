@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+func TestFormatSpeedMbps(t *testing.T) {
+	for _, tc := range []struct {
+		bytesPerSecond float64
+		want           string
+	}{
+		{0, "0.00Mbps"},
+		{-1, "0.00Mbps"},
+		{1_250, "0.01Mbps"},
+		{125_000, "1.00Mbps"},
+		{1_048_576, "8.39Mbps"},
+		{125_000_000, "1000.00Mbps"},
+	} {
+		if got := formatSpeed(tc.bytesPerSecond); got != tc.want {
+			t.Errorf("formatSpeed(%v) = %q, want %q", tc.bytesPerSecond, got, tc.want)
+		}
+	}
+}
+
 func TestRandomThemeAndNames(t *testing.T) {
 	if len(ThemeNames()) == 0 {
 		t.Fatal("ThemeNames 不应为空")

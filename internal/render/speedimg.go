@@ -49,7 +49,7 @@ func latencyCells(r *model.NodeResult, theme Theme) []Cell {
 
 // speedCells 返回 平均速度|最高速度|每秒速度 单元格。
 func speedCells(r *model.NodeResult, theme Theme) []Cell {
-	zero := Cell{Text: "0.00B", BG: theme.ZeroBG, Align: AlignCenter}
+	zero := Cell{Text: formatSpeed(0), BG: theme.ZeroBG, Align: AlignCenter}
 	avg, max := zero, zero
 	spark := Cell{Spark: []float64{}, Align: AlignCenter}
 	if r.Err == "" && r.Speed != nil && r.Speed.Avg > 0 {
@@ -79,18 +79,12 @@ func unlockCell(list []model.UnlockResult, platform string, theme Theme) Cell {
 	return Cell{Text: u.Label(), BG: theme.statusColor(u.Status), Align: AlignCenter}
 }
 
-// formatSpeed 1024 进制，保留两位小数，单位 B/KB/MB/GB。
+// formatSpeed 将字节/秒换算成十进制 Mbps，保留两位小数。
 func formatSpeed(v float64) string {
-	if v < 1 {
-		return "0.00B"
+	if v < 0 {
+		v = 0
 	}
-	units := []string{"B", "KB", "MB", "GB"}
-	i := 0
-	for v >= 1024 && i < len(units)-1 {
-		v /= 1024
-		i++
-	}
-	return fmt.Sprintf("%.2f%s", v, units[i])
+	return fmt.Sprintf("%.2fMbps", v*8/1e6)
 }
 
 // SaveSpeedImage 渲染测速图（*_speed.png）。

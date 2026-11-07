@@ -35,9 +35,9 @@ func TestMaxBandwidth(t *testing.T) {
 	}{
 		{nil, "1Gbps", "1Gbps"},
 		{nil, "", ""},
-		{[]*model.NodeResult{{Speed: &model.SpeedResult{Max: 125_000_000}}}, "", "1Gbps"},
+		{[]*model.NodeResult{{Speed: &model.SpeedResult{Max: 125_000_000}}}, "", "1000Mbps"},
 		{[]*model.NodeResult{{Speed: &model.SpeedResult{Max: 62_500_000}}}, "", "500Mbps"},
-		{[]*model.NodeResult{{Speed: &model.SpeedResult{Max: 250_000_000}}}, "", "2Gbps"},
+		{[]*model.NodeResult{{Speed: &model.SpeedResult{Max: 250_000_000}}}, "", "2000Mbps"},
 		{[]*model.NodeResult{{Speed: &model.SpeedResult{Max: 1}}}, "", "<1Mbps"},
 	}
 	for _, c := range cases {
