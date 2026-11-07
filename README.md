@@ -41,6 +41,7 @@
 - **UDP NAT 类型**：STUN（RFC 5780）检测 FullCone / Restricted / PortRestricted / Symmetric
 - **内嵌 Web UI**：`-web` 一键启动浏览器操作界面（填订阅、实时日志、查看/下载结果图），零额外文件
 - **订阅节点测速**：保留 DNS 策略、hosts、前置链和外部节点列表，忽略分流规则，代理组展开为默认节点，不改写订阅或强制替换入口 IP
+- **DNS ECS 位置提示**：指定省份和运营商，或自定义 IPv4/IPv6 网段，向订阅 DNS 上游提示解析位置
 - **输出文件名**：自动从订阅 URL/文件/内容中提取订阅名称，作为输出文件前缀（如 `xx机场_20260724_105252_speed.png`），也可用 `-name` 手动指定
 - **随机主题**：以 16 款柔和浅色主题为主（带 subtle 背景花纹），另有 4 款深色精选与 `default`，每次运行随机一套；也可通过 `-theme` 指定
 
@@ -85,6 +86,10 @@
 | `-ping-url` | `https://www.gstatic.com/generate_204` | 延迟测试目标，分别请求同一路径的 HTTP 和 HTTPS 地址 |
 | `-ping-count` | 4 | 每节点延迟测试次数 |
 | `-preflight` | false | 已停用；仅兼容旧命令，不会覆盖订阅 DNS 或固定入口 IP |
+| `-dns-province` | - | DNS ECS 省份，如 `广东`、`福建省`，与 `-dns-isp` 配合使用 |
+| `-dns-isp` | - | DNS ECS 运营商：电信、联通、移动（也接受 telecom/unicom/mobile） |
+| `-dns-ecs` | - | 自定义 ECS IP/CIDR，优先于省份和运营商预设 |
+| `-list-dns-ecs` | false | 列出省份、运营商及对应 ECS 网段后退出 |
 | `-web` | - | 启动内嵌 Web UI（如 `:18189` 或 `18189`），非空即启用 |
 
 ## 支持的订阅格式
@@ -97,6 +102,20 @@ Clash 订阅文件保持原样，不重新生成 YAML，也不回写源文件。
 代理组仅在加载时用于展开默认首选节点：优先 `default-selected`，否则取组中的首个节点，嵌套组递归展开。节点的 `dialer-proxy` 或 DNS 对组的引用会指向展开后的固定节点，不运行组的自动选择、故障切换或负载均衡策略。`-filter` 只筛选测速目标，前置节点仍保留；不继承其他客户端的当前选择。
 
 测速直接调用当前节点的内核出站，无额外的本机 SOCKS5 桥接。DNS 的 `respect-rules` / `#RULES` 不再经过订阅分流，按直连处理；显式指定节点或组的 DNS 连接仍使用对应节点。不启动订阅中的代理端口、DNS 监听、TUN 或防火墙设置。本地配置的 provider 相对路径以原文件所在目录为基准，URL 订阅使用独立临时工作目录，任务结束后清理。
+
+### 指定 DNS 解析的省份与运营商
+
+```sh
+./nekospeed -config ./clash.yaml -dns-province 广东 -dns-isp 联通
+./nekospeed -config ./clash.yaml -dns-ecs 210.21.196.0/24
+./nekospeed -list-dns-ecs
+```
+
+这使用 ECS（EDNS Client Subnet）向 DNS 上游提示客户端网段，实际是否采用、返回哪个入口由 DNS 上游及权威服务决定。上游仍使用订阅中的地址和协议，不会改用预设对应的 DNS 服务器，也不会改变实际出口 IP。只影响测速内核的 DNS 查询，不影响订阅拉取；IP 字面量和 hosts 命中时不产生 DNS 查询。
+
+需使用已启用 `dns.enable` 且配置了上游的 Clash 订阅，支持 UDP、TCP、DoH、DoT 和 DoQ。仅有分享链接、未启用 DNS 或使用 system/dhcp/tailscale 上游时会明确报错。参数留空时保持订阅默认；指定后覆盖本次任务内各 DNS 上游及域名策略的 ECS 参数，不改写源文件。自定义 IP 默认使用完整地址（IPv4 `/32`、IPv6 `/128`），CIDR 会规范化为网络地址。自定义值优先于省份/运营商选择。
+
+内置 31 个省级地区 × 三网共 93 个代表网段，采用地区运营商 DNS 地址所属的 `/24` 作为 ECS 提示，不能保证每个 DNS 服务的地理库判断相同。地址事实来源：[dping 地区运营商表](https://github.com/RJ-SRE/dping/blob/5fa6b1e444d0fd202fdec6c548c3b4d1cc33412b/internal/model.go)、[dns-test-tool 地址表](https://github.com/tonydon140/dns-test-tool/blob/bacf37074a2b477c8dfa85e411744979bc11550b/src/main/resources/dns.json)。可用自定义网段替换预设。
 
 ## 输出
 

@@ -35,7 +35,7 @@ type ConfigSession struct {
 	once    sync.Once
 }
 
-func OpenConfig(data []byte, baseDir string, nodes []model.Node) (*ConfigSession, error) {
+func OpenConfig(data []byte, baseDir string, nodes []model.Node, ecs string) (*ConfigSession, error) {
 	configMu.Lock()
 	oldHome := C.Path.HomeDir()
 	tempDir := ""
@@ -68,6 +68,10 @@ func OpenConfig(data []byte, baseDir string, nodes []model.Node) (*ConfigSession
 	if err != nil {
 		release()
 		return nil, fmt.Errorf("加载完整 Clash 配置: %w", err)
+	}
+	if err := applyECS(cfg.DNS, ecs); err != nil {
+		release()
+		return nil, err
 	}
 	oldHosts, oldDNS := resolver.DefaultHosts, resolver.DefaultResolver
 	oldProxyDNS, oldDirectDNS := resolver.ProxyServerHostResolver, resolver.DirectHostResolver

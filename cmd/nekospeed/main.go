@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"nekospeed/internal/nodepool"
 	"nekospeed/internal/runner"
 	"nekospeed/internal/webui"
 )
@@ -36,8 +37,19 @@ func main() {
 		theme       = flag.String("theme", "", "渲染主题名称（如 blue_dark），为空时随机选择")
 		proxy       = flag.String("proxy", "", "拉取订阅使用的代理（如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080），默认读取 HTTPS_PROXY 环境变量")
 		web         = flag.String("web", "", "启动内嵌 Web UI（如 :18189 或 18189），非空即启用")
+		dnsProvince = flag.String("dns-province", "", "DNS ECS 省份预设（如广东），需同时指定 -dns-isp")
+		dnsISP      = flag.String("dns-isp", "", "DNS ECS 运营商：电信/联通/移动，需同时指定 -dns-province")
+		dnsECS      = flag.String("dns-ecs", "", "自定义 DNS ECS IP/CIDR，优先于省份/运营商预设")
+		listDNSECS  = flag.Bool("list-dns-ecs", false, "列出 DNS ECS 省份/运营商预设后退出")
 	)
 	flag.Parse()
+	if *listDNSECS {
+		fmt.Println("省份\t运营商\tECS 网段")
+		for _, profile := range nodepool.ECSProfiles() {
+			fmt.Printf("%s\t%s\t%s\n", profile.Province, profile.ISP, profile.Subnet)
+		}
+		return
+	}
 
 	if *web != "" {
 		addr := *web
@@ -78,6 +90,9 @@ func main() {
 		Preflight:   *preflight,
 		Theme:       *theme,
 		Proxy:       *proxy,
+		DNSProvince: *dnsProvince,
+		DNSISP:      *dnsISP,
+		DNSECS:      *dnsECS,
 	}, func(format string, args ...any) {
 		fmt.Printf(format+"\n", args...)
 	})

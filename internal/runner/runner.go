@@ -54,7 +54,10 @@ type Options struct {
 	// Bandwidth 手动指定的本地带宽标签（如 "1Gbps"），为空时取测速峰值。
 	Bandwidth string
 	// Proxy 拉取订阅使用的代理（如 http://127.0.0.1:7890），为空时读取 HTTPS_PROXY 等环境变量。
-	Proxy string
+	Proxy       string
+	DNSProvince string // DNS ECS 省份预设。
+	DNSISP      string // DNS ECS 运营商预设。
+	DNSECS      string // 自定义 ECS IP/CIDR，优先于省份和运营商。
 }
 
 // Output 一次测速任务的结果摘要。
@@ -78,6 +81,10 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 	if o.Single {
 		o.Threads = 1
 	}
+	ecs, err := nodepool.ResolveECS(o.DNSProvince, o.DNSISP, o.DNSECS)
+	if err != nil {
+		return nil, err
+	}
 	if err := subscription.SetProxy(o.Proxy); err != nil {
 		return nil, err
 	}
@@ -90,15 +97,21 @@ func Run(ctx context.Context, o Options, logf func(format string, args ...any)) 
 		return nil, fmt.Errorf("加载订阅失败: %w", err)
 	}
 	nodes, subName := doc.Nodes, doc.Name
+	if ecs != "" && doc.Config == nil {
+		return nil, fmt.Errorf("DNS ECS 需要包含 DNS 配置的 Clash 订阅，分享链接列表没有 DNS 上游设置")
+	}
 	newDialer := nodepool.NewDialer
 	if doc.Config != nil {
-		session, err := nodepool.OpenConfig(doc.Config, doc.BaseDir, nodes)
+		session, err := nodepool.OpenConfig(doc.Config, doc.BaseDir, nodes, ecs)
 		if err != nil {
 			return nil, err
 		}
 		defer session.Close()
 		nodes, newDialer = session.Nodes, session.NewDialer
 		logf("已加载订阅 DNS、hosts 和节点列表；忽略分流规则，代理组按默认首选展开为实际节点；不覆盖入口 IP")
+		if ecs != "" {
+			logf("DNS ECS：%s（向订阅 DNS 上游提示位置，是否采用由上游决定）", ecs)
+		}
 	}
 	if o.Name != "" {
 		subName = o.Name
