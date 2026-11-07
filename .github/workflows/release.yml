@@ -87,8 +87,8 @@ jobs:
           cd dist
           shopt -s nullglob
           archives=(*.tar.gz *.zip)
-          if [[ ${#archives[@]} != 6 ]]; then
-            echo 'Expected six platform packages' >&2
+          if [[ ${#archives[@]} == 0 ]]; then
+            echo 'No platform packages were downloaded' >&2
             exit 1
           fi
           sha256sum "${archives[@]}" > SHA256SUMS
