@@ -1,0 +1,98 @@
+name: Publish Release
+run-name: Publish ${{ inputs.tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.2.0)
+        required: true
+        type: string
+      title:
+        description: Optional release title
+        required: false
+        type: string
+      draft:
+        description: Save as a draft instead of publishing
+        required: true
+        type: boolean
+        default: false
+      prerelease:
+        description: Mark as a prerelease
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate tag and target commit
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo 'Use a version tag such as v0.2.0 or v0.2.0-rc.1' >&2
+            exit 1
+          fi
+          if existing="$(git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}")"; then
+            if [[ "$existing" != "$GITHUB_SHA" ]]; then
+              echo 'The tag already points to another commit' >&2
+              exit 1
+            fi
+          fi
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      version: ${{ inputs.tag }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_TITLE: ${{ inputs.title }}
+      RELEASE_DRAFT: ${{ inputs.draft }}
+      RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+    steps:
+      - name: Download platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nekospeed-*
+          path: dist
+          merge-multiple: true
+      - name: Publish packages and checksums
+        shell: bash
+        run: |
+          cd dist
+          shopt -s nullglob
+          archives=(*.tar.gz *.zip)
+          if [[ ${#archives[@]} != 6 ]]; then
+            echo 'Expected six platform packages' >&2
+            exit 1
+          fi
+          sha256sum "${archives[@]}" > SHA256SUMS
+          args=(--target "$GITHUB_SHA" --title "${RELEASE_TITLE:-$RELEASE_TAG}" --generate-notes)
+          if [[ "$RELEASE_DRAFT" == true ]]; then args+=(--draft); fi
+          if [[ "$RELEASE_PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" "${archives[@]}" SHA256SUMS "${args[@]}"
