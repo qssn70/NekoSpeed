@@ -1,28 +1,53 @@
-name: Build NekoSpeed Linux
+name: Build NekoSpeed
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Optional version label (defaults to the Git revision)
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: ''
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - '.github/workflows/build-linux.yml'
+      - '.github/workflows/**'
       - 'cmd/**'
       - 'internal/**'
       - 'go.mod'
       - 'go.sum'
+      - 'README.md'
+      - 'LICENSE'
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build Linux amd64
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+    env:
+      CGO_ENABLED: '0'
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      NEKOSPEED_VERSION: ${{ inputs.version }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -34,19 +59,74 @@ jobs:
         run: go mod tidy -diff
 
       - name: Compile NekoSpeed
-        env:
-          CGO_ENABLED: '0'
-          GOOS: linux
-          GOARCH: amd64
+        shell: bash
         run: |
-          go build -trimpath -ldflags="-s -w" -o nekospeed-linux-amd64 ./cmd/nekospeed
-          chmod +x nekospeed-linux-amd64
-          ./nekospeed-linux-amd64 -h >/dev/null 2>&1
+          if [[ -z "$NEKOSPEED_VERSION" ]]; then
+            NEKOSPEED_VERSION="$(git describe --tags --always)"
+          fi
+          if [[ ! "$NEKOSPEED_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]*$ ]]; then
+            echo 'Invalid version label' >&2
+            exit 1
+          fi
+          binary="nekospeed-${GOOS}-${GOARCH}"
+          if [[ "$GOOS" == windows ]]; then binary+='.exe'; fi
+          mkdir -p package dist
+          go build -trimpath -ldflags="-s -w -X nekospeed/internal/runner.Version=${NEKOSPEED_VERSION}" -o "package/$binary" ./cmd/nekospeed
+          cp README.md LICENSE package/
+          if [[ "$GOOS" == linux && "$GOARCH" == amd64 ]]; then
+            "./package/$binary" -h >/dev/null 2>&1
+          fi
+          if [[ "$GOOS" == windows ]]; then
+            archive="nekospeed-${GOOS}-${GOARCH}.zip"
+            (cd package && zip -q "../dist/$archive" "$binary" README.md LICENSE)
+          else
+            archive="nekospeed-${GOOS}-${GOARCH}.tar.gz"
+            tar -czf "dist/$archive" -C package "$binary" README.md LICENSE
+          fi
+          (cd dist && sha256sum "$archive" > "$archive.sha256")
 
-      - name: Upload standalone binary
+      - name: Check config loading without subscription routing
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        shell: bash
+        run: |
+          config_path="$RUNNER_TEMP/nekospeed-config.yaml"
+          cat > "$config_path" <<'CONFIG'
+          proxies:
+            - {name: front, type: socks5, server: 127.0.0.1, port: 1}
+            - {name: leaf, type: socks5, server: 127.0.0.1, port: 2, dialer-proxy: FRONT}
+          proxy-groups:
+            - {name: INNER, type: select, proxies: [front]}
+            - {name: FRONT, type: url-test, proxies: [INNER], interval: 300, url: 'http://unused.invalid/'}
+          rules: ['INVALID-RULE,unused']
+          sub-rules:
+            unused: ['INVALID-RULE,unused']
+          rule-providers:
+            unused:
+              type: http
+              behavior: domain
+              url: 'https://unused.invalid/rules.yaml'
+              path: ./unused.yaml
+          dns:
+            enable: true
+            nameserver: [127.0.0.1]
+            nameserver-policy:
+              '+.entry.invalid': ['tcp://127.0.0.1:8080']
+          CONFIG
+          original_hash="$(sha256sum "$config_path")"
+          set +e
+          output="$(timeout 20 ./package/nekospeed-linux-amd64 -config "$config_path" -filter '^$' -tests topo 2>&1)"
+          status=$?
+          set -e
+          if [[ "$status" != 1 || "$output" != *'没有可用节点'* ]]; then
+            printf '%s\n' "$output"
+            exit 1
+          fi
+          [[ "$(sha256sum "$config_path")" == "$original_hash" ]]
+
+      - name: Upload platform package
         uses: actions/upload-artifact@v4
         with:
-          name: nekospeed-linux-amd64
-          path: nekospeed-linux-amd64
+          name: nekospeed-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
           retention-days: 30
           if-no-files-found: error

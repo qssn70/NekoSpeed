@@ -24,7 +24,7 @@ import (
 )
 
 // Version 输出图片与 JSON 中的版本标识。
-const Version = "0.1.0"
+var Version = "0.1.0"
 
 // 完整配置使用 Mihomo 进程全局状态；不同测速任务不能相互覆盖。
 var runMu sync.Mutex

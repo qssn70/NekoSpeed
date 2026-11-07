@@ -123,7 +123,21 @@ HTTP RTT：每次采样先以 HEAD 预热 HTTP 连接，再计第二次请求到
 
 ## 构建
 
-需要 Go 1.22+：
+### GitHub Actions 构建
+
+[Build NekoSpeed](https://github.com/qssn70/NekoSpeed/actions/workflows/build-linux.yml) 在主分支代码变更后自动构建，也可以手动运行。提供以下六种产物，每份包含程序、README、许可证和压缩包 SHA256：
+
+| 系统 | 架构 | 压缩格式 |
+|---|---|---|
+| Linux | amd64、arm64 | `.tar.gz` |
+| Windows | amd64、arm64 | `.zip` |
+| macOS（darwin） | amd64、arm64 | `.tar.gz` |
+
+编译检查覆盖全部六个平台，程序启动检查在 Linux amd64 上执行。
+
+### 本地构建
+
+Go 版本要求见 `go.mod`：
 
 ```bash
 go build -o nekospeed ./cmd/nekospeed
