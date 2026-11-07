@@ -509,9 +509,9 @@ func TestPerplexityAPIOtherError(t *testing.T) {
 	}
 }
 
-func TestSoraAPIUnlock(t *testing.T) {
-	api, trace := apiTraceMock(t, "/v1/videos", 401, `{"error":{"code":"invalid_api_key"}}`, "loc=US\n")
-	swapURL(t, &soraAPIURL, api)
+// 新逻辑:trace 取地区码,对照 Sora 开放国家白名单判定(不请求 /v1/videos)。
+func TestSoraRegionUnlock(t *testing.T) {
+	_, trace := apiTraceMock(t, "/unused", 200, ``, "loc=US\n")
 	swapURL(t, &openAITraceURL, trace)
 	res := checkSora(context.Background(), directDialer())
 	if res.Status != model.StatusUnlock || res.Region != "US" {
@@ -519,13 +519,12 @@ func TestSoraAPIUnlock(t *testing.T) {
 	}
 }
 
-func TestSoraAPIRegionBlocked(t *testing.T) {
-	api, trace := apiTraceMock(t, "/v1/videos", 403, `{"error":{"code":"unsupported_country_region_territory","message":"Country, region, or territory not supported"}}`, "loc=CN\n")
-	swapURL(t, &soraAPIURL, api)
+func TestSoraRegionBlocked(t *testing.T) {
+	_, trace := apiTraceMock(t, "/unused", 200, ``, "loc=HK\n")
 	swapURL(t, &openAITraceURL, trace)
 	res := checkSora(context.Background(), directDialer())
-	if res.Status != model.StatusFailed || res.Region != "CN" {
-		t.Fatalf("期望失败(CN)，得到 %+v", res)
+	if res.Status != model.StatusFailed || res.Region != "HK" || res.Info != "地区限制" {
+		t.Fatalf("期望失败(HK 地区限制)，得到 %+v", res)
 	}
 }
 
